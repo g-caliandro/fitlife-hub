@@ -1,0 +1,18 @@
+<resources>
+    <string name="home_title">Life Hub</string>
+    <string name="home_profile">Profile</string>
+    <string name="home_start_workout">Start workout</string>
+    <string name="home_resume_workout">Resume workout</string>
+    <string name="home_log_macros">Macros</string>
+    <string name="home_log_weight">Weight</string>
+    <string name="home_goals">Goals</string>
+    <string name="home_all">See all</string>
+    <string name="home_no_goals">No active goals</string>
+    <string name="home_add_goal">Add goal</string>
+    <string name="home_kcal">kcal</string>
+    <string name="home_protein">Protein</string>
+    <string name="home_today">Today</string>
+    <string name="home_tomorrow">Tomorrow</string>
+    <string name="home_macros">Macros</string>
+    <string name="home_training">Training</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wo_start_title">Start workout</string>
+    <string name="wo_log_title">Log workout</string>
+    <string name="wo_saved">Workout saved</string>
+    <string name="wo_discard_title">Discard workout?</string>
+    <string name="wo_discard_msg">All sets logged in this session will be deleted.</string>
+    <string name="wo_discard">Discard</string>
+    <string name="wo_all_done">All sets done</string>
+    <string name="wo_finish">Finish</string>
+    <string name="wo_finish_workout">Finish workout</string>
+    <string name="wo_done">Done</string>
+    <string name="wo_update">Update</string>
+    <string name="wo_rest">Rest</string>
+    <string name="wo_skip_rest">Skip rest</string>
+    <string name="wo_skip_set">Skip set</string>
+</resources>

@@ -1,0 +1,21 @@
+<resources>
+    <string name="body_title_log">Log weight</string>
+    <string name="body_title_edit">Edit weight</string>
+    <string name="body_title_list">Body</string>
+    <string name="body_date">Date</string>
+    <string name="body_weight">Weight</string>
+    <string name="body_muscle">Muscle mass</string>
+    <string name="body_fat">Fat mass</string>
+    <string name="body_fat_pct">Body fat %1$s %%</string>
+    <string name="body_err_weight">Between 20 and 300 kg</string>
+    <string name="body_err_exceed">Can\'t exceed weight</string>
+    <string name="body_err_sum">Muscle + fat can\'t exceed weight</string>
+    <string name="body_last">Last: %1$s kg on %2$s</string>
+    <string name="body_saved">Weight saved</string>
+    <string name="body_deleted">Weight deleted</string>
+    <string name="body_delete_title">Delete weigh-in?</string>
+    <string name="body_delete_msg">Remove the entry for %1$s?</string>
+    <string name="body_empty">No weigh-ins yet</string>
+    <string name="body_add">Add weigh-in</string>
+    <string name="body_more">More</string>
+</resources>

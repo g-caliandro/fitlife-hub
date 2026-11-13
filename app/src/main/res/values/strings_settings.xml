@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_nutrition">Nutrition</string>
+    <string name="settings_protein_target">Protein target</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_blocked">Notifications are blocked in system settings.</string>
+    <string name="settings_open_settings">Open settings</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_about">About</string>
+</resources>

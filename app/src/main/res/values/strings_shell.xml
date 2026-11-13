@@ -1,0 +1,11 @@
+<resources>
+    <!-- DECISION: shell strings live in strings_shell.xml (WP0) so strings.xml keeps only shared words. -->
+    <string name="tab_home">Home</string>
+    <string name="tab_calendar">Calendar</string>
+    <string name="tab_diary">Diary</string>
+    <string name="tab_trends">Trends</string>
+    <string name="tab_train">Train</string>
+    <string name="tab_goals">Goals</string>
+    <string name="workout_in_progress">Workout · %1$s · %2$s</string>
+    <string name="resume">Resume</string>
+</resources>

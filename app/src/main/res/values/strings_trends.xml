@@ -1,0 +1,10 @@
+<resources>
+    <string name="trends_title">Trends</string>
+    <string name="trends_training">Training</string>
+    <string name="trends_nutrition">Nutrition</string>
+    <string name="trends_body">Body</string>
+    <string name="trends_calories">Calories</string>
+    <string name="trends_protein">Protein</string>
+    <string name="trends_prev_period">Previous period</string>
+    <string name="trends_next_period">Next period</string>
+</resources>

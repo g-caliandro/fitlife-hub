@@ -1,0 +1,42 @@
+<resources>
+    <string name="cal_title">Diary</string>
+    <string name="cal_today">Today</string>
+    <string name="cal_prev">Previous month</string>
+    <string name="cal_next">Next month</string>
+    <string name="cal_on_track">On track this month</string>
+    <plurals name="cal_sum_training">
+        <item quantity="one">%d workout missed</item>
+        <item quantity="other">%d workouts missed</item>
+    </plurals>
+    <plurals name="cal_sum_protein">
+        <item quantity="one">%d day low on protein</item>
+        <item quantity="other">%d days low on protein</item>
+    </plurals>
+    <plurals name="cal_sum_kcal">
+        <item quantity="one">%d cheat day</item>
+        <item quantity="other">%d cheat days</item>
+    </plurals>
+    <string name="cal_goal_due">%1$s due %2$s</string>
+    <plurals name="cal_goals_due">
+        <item quantity="one">%d goal due</item>
+        <item quantity="other">%d goals due</item>
+    </plurals>
+    <plurals name="cal_goals_reached">
+        <item quantity="one">%d goal reached</item>
+        <item quantity="other">%d goals reached</item>
+    </plurals>
+    <string name="cal_goal_due_day">Goal due</string>
+    <string name="cal_goal_reached_day">Goal reached</string>
+    <string name="cal_workouts">Workouts</string>
+    <string name="cal_macros">Macros</string>
+    <string name="cal_body">Body</string>
+    <string name="cal_log_workout">Log workout</string>
+    <string name="cal_log_macros">Log macros</string>
+    <string name="cal_log_weight">Log weight</string>
+    <string name="cal_exercises_done">%1$d/%2$d exercises</string>
+    <string name="cal_open_session">Open session</string>
+    <string name="cal_protein_of">Protein %1$d / %2$d g</string>
+    <string name="cal_expand">Expand</string>
+    <string name="cal_collapse">Collapse</string>
+    <string name="cal_selected_day">Selected day</string>
+</resources>

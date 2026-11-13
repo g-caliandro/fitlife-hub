@@ -1,0 +1,19 @@
+<resources>
+    <string name="nut_title_log">Log macros</string>
+    <string name="nut_title_edit">Edit macros</string>
+    <string name="nut_date">Date</string>
+    <string name="nut_protein">Protein</string>
+    <string name="nut_carbs">Carbs</string>
+    <string name="nut_fat">Fat</string>
+    <string name="nut_kcal">kcal</string>
+    <string name="nut_auto_hint">Auto: 4·P + 4·C + 9·F</string>
+    <string name="nut_manual_hint">Manual — clear to auto-calculate</string>
+    <string name="nut_error_empty">Enter at least one macro</string>
+    <string name="nut_editing_existing">Editing existing entry</string>
+    <string name="nut_target">Protein target %1$d g · today %2$d</string>
+    <string name="nut_saved">Macros saved</string>
+    <string name="nut_deleted">Macros deleted</string>
+    <string name="nut_delete_title">Delete macros?</string>
+    <string name="nut_delete_msg">Remove the macro entry for %1$s?</string>
+    <string name="nut_more">More</string>
+</resources>
