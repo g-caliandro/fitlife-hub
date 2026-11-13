@@ -10,6 +10,7 @@ object Channels {
     const val PROTEIN = "reminders_protein"
     const val WEIGHT = "reminders_weight"
     const val ACHIEVEMENT = "reminders_achievement"
+    const val STREAK = "reminders_streak"
     const val REST_TIMER = "rest_timer"
     const val REST_DONE = "rest_done"
 
@@ -23,6 +24,7 @@ object Channels {
                 ch(PROTEIN, "Protein reminders", NotificationManager.IMPORTANCE_DEFAULT),
                 ch(WEIGHT, "Weight reminders", NotificationManager.IMPORTANCE_DEFAULT),
                 ch(ACHIEVEMENT, "Achievements", NotificationManager.IMPORTANCE_DEFAULT),
+                ch(STREAK, "Streak reminders", NotificationManager.IMPORTANCE_DEFAULT),
                 ch(REST_TIMER, "Rest timer", NotificationManager.IMPORTANCE_LOW),
                 ch(REST_DONE, "Rest over", NotificationManager.IMPORTANCE_HIGH),
             )

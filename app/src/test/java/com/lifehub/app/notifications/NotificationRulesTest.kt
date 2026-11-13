@@ -45,6 +45,38 @@ class NotificationRulesTest {
         assertTrue(n.text.startsWith("Training day"))
     }
 
+    // ---- evening streak reminder ----
+    // Plan on Mon/Wed (created long ago); "today" is Mon 9 Nov unless stated.
+    private val mw = listOf(plan("a", "Pull", 1, 3))
+    private fun streakIn(today: LocalDate = mon, completed: List<WorkoutSession>, inProg: Boolean = false, settings: Settings = Settings(),
+                         last: Map<NotifType, LocalDate?> = emptyMap()) =
+        input(today = today, plans = mw, completed = completed, inProg = inProg, settings = settings, last = last)
+
+    @Test fun streakReminderOnPlannedDayWithoutWorkout() {
+        // Last workout Wed 4 Nov; Thu..Sun rest -> streak 5 (Wed..Sun), Mon pending.
+        val n = NotificationRules.evaluateStreak(streakIn(completed = listOf(sess(mon.minusDays(5)))))!!
+        assertEquals(NotifType.STREAK, n.type)
+        assertEquals("Train today or tomorrow to keep your 5-day streak.", n.text)
+        assertTrue(n.route.contains("a"))
+    }
+    @Test fun streakReminderOnlyTodayWhenYesterdayWasSkippedToo() {
+        // Plan Sun + Mon, Sun skipped: only a workout today can still save Sunday.
+        val sunMon = listOf(plan("b", "Legs", 7, 1))
+        val n = NotificationRules.streak(input(plans = sunMon, completed = listOf(sess(mon.minusDays(5)))))!!
+        assertEquals("Train today to keep your 4-day streak.", n.text)
+    }
+    @Test fun streakReminderSuppressed() {
+        val past = sess(mon.minusDays(5))
+        assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past, sess(mon)))))           // trained today
+        assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), inProg = true)))       // training now
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = mon.plusDays(1), completed = listOf(past)))) // Tue: not planned
+        assertNull(NotificationRules.evaluateStreak(streakIn(completed = emptyList())))                       // no streak (0)
+        assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), settings = Settings(notifyStreak = false))))
+        assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), last = mapOf(NotifType.STREAK to mon)))) // once a day
+    }
+    @Test fun streakReminderNotPartOfTheDailyCheck() =
+        assertTrue(NotificationRules.evaluate(streakIn(completed = listOf(sess(mon.minusDays(5))))).none { it.type == NotifType.STREAK })
+
     private fun week(start: LocalDate, p: Int, n: Int = 7) = (0 until n).map { macro(start.plusDays(it.toLong()), p) }
     @Test fun proteinBelowTarget() {
         val n = NotificationRules.protein(input(macros = week(mon.minusDays(7), 120)))!!

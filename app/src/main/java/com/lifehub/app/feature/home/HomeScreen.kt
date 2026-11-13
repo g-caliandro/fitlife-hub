@@ -83,19 +83,22 @@ fun HomeRoute(onNavigate: (String) -> Unit) {
     val c = LocalContext.current.container
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(c))
     val state by vm.state.collectAsStateWithLifecycle()
-    HomeScreen(state, onNavigate)
+    HomeScreen(state, onNavigate, onStreakSeen = vm::streakCelebrated)
 }
 
 @Composable
-fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}) {
+fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakSeen: () -> Unit = {}) {
     val c = LhTheme.colors
     val nav = onNavigate
     Column(Modifier.fillMaxSize().background(c.background)) {
         // Profile (You) = profile + all settings; replaces the old gear.
         LhScreenHeader(stringResource(R.string.home_title), Icons.Filled.Home, actions = {
+            // Duolingo-style training streak (replaces the consistency achievements); tap -> calendar.
+            if (state != null) StreakBadge(state.streakDays, { nav(Routes.CALENDAR) })
             LhIconAction(Icons.Outlined.AccountCircle, stringResource(R.string.home_profile), { nav(Routes.YOU) }, Modifier.testTag("home-profile"))
         })
         if (state == null) return@Column
+        if (state.celebrateStreak) StreakCelebration(state.streakDays, state.streakWeek, onStreakSeen)
         LazyColumn(Modifier.fillMaxSize().testTag("home-list"), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, com.lifehub.app.core.designsystem.components.LocalTabBottomPadding.current)) {
             item {
                 LhSectionHeader(
@@ -109,11 +112,6 @@ fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}) {
                         if (b == null) "Log weight" else "${fmtKg(b.weightKg)} kg", icon = Icons.Outlined.MonitorWeight,
                         trailingIcon = if (b == null) Icons.Outlined.Add else Icons.Outlined.Edit,
                         onClick = { nav(Routes.bodyEdit(state.today)) }, modifier = Modifier.testTag("home-weight-chip"),
-                    )
-                    // ONT streak chip: consecutive days with food/macros logged; tap -> Diary.
-                    if (state.streakDays > 0) LhValueChip(
-                        "${state.streakDays}-day streak", icon = Icons.Outlined.LocalFireDepartment, iconTint = c.warning,
-                        trailingIcon = null, onClick = { nav(Routes.CALENDAR) }, modifier = Modifier.testTag("home-streak-chip"),
                     )
                 }
                 Spacer(Modifier.height(12.dp))

@@ -112,10 +112,10 @@ fun AchievementsRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
 }
 
 enum class AchievementFilter(val label: String) {
-    ALL("All"), GOALS("Goals"), PRS("PRs"), CONSISTENCY("Consistency");
+    ALL("All"), GOALS("Goals"), PRS("PRs");
 
     fun accepts(a: Achievement) = when (this) {
-        ALL -> true; GOALS -> a.kind.isBig; PRS -> a.kind.isPr; CONSISTENCY -> a.kind.isConsistency
+        ALL -> !a.kind.isConsistency; GOALS -> a.kind.isBig; PRS -> a.kind.isPr
     }
 }
 

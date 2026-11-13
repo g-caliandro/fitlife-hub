@@ -94,10 +94,12 @@ class AchievementRepositoryTest {
         assertEquals(1, repo.observeRecent(3).first().size)
     }
 
-    @Test fun detectPeriodsIsIdempotent() = runBlocking {
+    @Test fun detectPeriodsStoresNoConsistencyAndPurgesLegacyRows() = runBlocking {
         val mon = LocalDate.of(2026, 11, 2)
         db.macroDao().insertAll((0..6).map { MacroDay(mon.plusDays(it.toLong()), 160, 200, 70, 2000, true, now) })
-        assertEquals(listOf("PROTEIN_WEEK:2026-W45"), repo.detectPeriods(today, 150, ZoneOffset.UTC, now).map { it.dedupeKey })
+        db.achievementDao().insertAll(listOf(Achievement("old", AchievementKind.PROTEIN_WEEK, "Protein target hit all week", null, 150.0, "g",
+            null, null, null, mon.plusDays(6), now, "PROTEIN_WEEK:2026-W45")))
         assertTrue(repo.detectPeriods(today, 150, ZoneOffset.UTC, now).isEmpty())
+        assertTrue(repo.getAll().isEmpty())
     }
 }

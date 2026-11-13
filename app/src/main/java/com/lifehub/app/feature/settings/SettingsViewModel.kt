@@ -157,7 +157,7 @@ class SettingsViewModel(private val app: Application, private val c: AppContaine
             busy(BusyOp.IMPORT)
             try {
                 c.backup.replaceAll(snap)
-                if (snap.achievements.isEmpty()) {
+                if (snap.achievements.all { it.kind.isConsistency }) {
                     c.achievements.recalculate(c.time.today(), c.settings.current().proteinTargetG, c.time.zone, c.time.now())
                 }
                 NotificationScheduler.schedule(app, c.settings.current().dailyCheckTime, replace = true)

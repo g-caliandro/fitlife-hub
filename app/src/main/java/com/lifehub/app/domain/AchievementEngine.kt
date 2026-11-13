@@ -226,7 +226,11 @@ object AchievementEngine {
 
     // ---- everything ------------------------------------------------------------------------------
 
-    /** Full recomputation from history. Pure + idempotent; results are de-duplicated by key. */
+    /**
+     * Full recomputation from history. Pure + idempotent; results are de-duplicated by key.
+     * Consistency (perfect weeks/months, protein weeks, session milestones) is no longer stored as achievements:
+     * it is shown as the training streak instead (see [Streak]).
+     */
     fun backfill(h: AchievementHistory): List<AchievementCandidate> =
-        (prs(h) + milestones(h) + periods(h) + goals(h)).distinctBy { it.dedupeKey }
+        (prs(h) + goals(h)).distinctBy { it.dedupeKey }
 }

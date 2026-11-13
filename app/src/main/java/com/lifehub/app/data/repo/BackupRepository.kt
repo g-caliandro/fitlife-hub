@@ -58,7 +58,8 @@ class BackupRepositoryImpl(
             db.sessionDao().insertAllSets(snapshot.sets)
             db.macroDao().insertAll(snapshot.macros)
             db.bodyDao().insertAll(snapshot.bodyEntries)
-            db.achievementDao().insertAll(snapshot.achievements)
+            // Legacy consistency rows (older exports) are dropped: the streak replaced them.
+            db.achievementDao().insertAll(snapshot.achievements.filterNot { it.kind.isConsistency })
             db.foodDao().insertAll(snapshot.foods)
             db.foodEntryDao().insertAll(snapshot.foodEntries)
         }

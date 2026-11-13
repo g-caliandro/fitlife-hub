@@ -148,7 +148,7 @@ fun LiveWorkoutRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
     val actions = LiveActions(
         onBack = onBack, onFocus = vm::focusIndex, onWeight = vm::onWeight, onValue = vm::onValue,
         onDone = { input -> if (vm.done(input)) confirm() },
-        onSkipSet = { tick(); vm.skipFocused() }, onApplyWeight = vm::applyWeightToRemaining, onToggleSkip = vm::toggleSkip,
+        onSkipSet = { tick(); vm.skipFocused() }, onToggleSkip = vm::toggleSkip,
         onRemoveSet = { id ->
             vm.removeSet(id) { original ->
                 scope.launch {
@@ -171,9 +171,10 @@ fun LiveWorkoutRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
         onStartHold = vm::startHold, onFinishHold = { auto -> if (vm.finishHold(auto)) confirm() },
         onCancelHold = vm::cancelHold, onAdjustRest = vm::adjustRest, onSkipRest = vm::skipRest,
         onFinish = { notes, rpe ->
-            vm.finish(notes, rpe) {
+            vm.finish(notes, rpe) { raised ->
                 onNavigate(Routes.home())
-                container.appScope.launch(kotlinx.coroutines.Dispatchers.Main) { snackbar.showSnackbar("Workout saved") }
+                val msg = if (raised.isEmpty()) "Workout saved" else "Workout saved · next time: " + raised.joinToString(", ")
+                container.appScope.launch(kotlinx.coroutines.Dispatchers.Main) { snackbar.showSnackbar(msg) }
             }
         },
         onDiscard = { vm.discard { onBack() } },

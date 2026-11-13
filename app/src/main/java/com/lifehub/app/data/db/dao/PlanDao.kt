@@ -21,6 +21,7 @@ import java.time.LocalDate
     @Query("SELECT * FROM plan_exercises WHERE planId = :planId ORDER BY orderIndex") suspend fun getExercises(planId: String): List<PlanExercise>
     @Query("DELETE FROM plan_exercises WHERE planId = :planId") suspend fun deleteExercises(planId: String)
     @Insert suspend fun insertExercises(items: List<PlanExercise>)
+    @Upsert suspend fun upsertExercises(items: List<PlanExercise>)
 
     @Query("SELECT * FROM plans") suspend fun getAll(): List<Plan>
     @Query("SELECT * FROM plan_exercises") suspend fun getAllExercises(): List<PlanExercise>

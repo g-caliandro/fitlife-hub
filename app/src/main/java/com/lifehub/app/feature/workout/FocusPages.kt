@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -26,11 +27,11 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -160,106 +161,83 @@ fun SetPage(
     onDone: (SetInput?) -> Unit,
 ) {
     val c = LhTheme.colors
-    var adjust by remember { mutableStateOf(false) }
-    var entry by remember { mutableStateOf(false) }
-    val input = if (busy) WorkoutOps.prefill(set) else ui.input
+    val raw = if (busy) WorkoutOps.prefill(set) else ui.input
+    // A ruler always shows a number: a blank value (MAX without history) starts from a sensible default.
+    val input = if (raw.value.isBlank()) raw.copy(value = WorkoutOps.fallbackValue(set, ui.sets, null)) else raw
     val canDone = WorkoutOps.canComplete(input)
     val block = ui.sets.filter { it.exerciseOrder == set.exerciseOrder }
     val prev = ui.previous[set.id]?.takeIf { it != "—" }
-    val weight = input.weight.toDoubleOrNull()?.takeIf { it > 0 }
+    val seconds = set.targetType == TargetType.SECONDS
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        // Header: icon + name + set position + target / last time (compact, the rulers get the room).
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                ExerciseIcon(set.exerciseName, 140.dp, dayType = ui.dayType)
-                CheckBurst(burst)
+                ExerciseIcon(set.exerciseName, 76.dp, dayType = ui.dayType)
+                CheckBurst(burst, Modifier.scale(0.6f))
             }
-            Text(set.exerciseName, style = LhType.screenTitle, color = c.foreground, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 16.dp).testTag("focus-title"))
-            Text("Set ${set.setIndex + 1} of ${block.size}", style = LhType.bodyLarge, color = c.mutedForeground, modifier = Modifier.padding(top = 2.dp))
-            if (hold) {
+            Column(Modifier.weight(1f)) {
+                Text(set.exerciseName, style = LhType.title, color = c.foreground, maxLines = 2, modifier = Modifier.testTag("focus-title"))
+                Text("Set ${set.setIndex + 1} of ${block.size}", style = LhType.body, color = c.mutedForeground)
+                Text(
+                    "Target ${targetText(set, SetInput("", ""))}" + (set.weightKg?.takeIf { it > 0 }?.let { " · ${fmtWeight(it)} kg" } ?: ""),
+                    style = LhType.body, color = c.mutedForeground, modifier = Modifier.testTag("focus-target"),
+                )
+                if (prev != null) Text("Last time: $prev", style = LhType.body, color = c.mutedForeground, modifier = Modifier.testTag("set-prev"))
+            }
+        }
+        if (hold) {
+            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 val start = ui.holdStartMillis ?: nowMillis
                 val el = ((nowMillis - start) / 1000).toInt().coerceAtLeast(0)
                 val tgt = set.targetValue
                 val shown = if (tgt != null && tgt > 0) (tgt - el).coerceAtLeast(0) else el
-                CountRing(if (tgt != null && tgt > 0) el.toFloat() / tgt else 0f, c.primary, 190.dp, Modifier.padding(top = 20.dp)) {
+                CountRing(if (tgt != null && tgt > 0) el.toFloat() / tgt else 0f, c.primary, 210.dp) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(fmtClock(shown), style = LhType.tnum(LhType.timer.copy(fontSize = 48.sp)), color = c.foreground)
                         Text(if (tgt != null && tgt > 0) "of ${tgt} s" else "holding", style = LhType.caption, color = c.mutedForeground)
                     }
                 }
-            } else {
-                Text(
-                    targetText(set, input), style = LhType.tnum(LhType.timer),
-                    color = c.foreground, modifier = Modifier.padding(top = 12.dp).testTag("focus-target"),
-                )
             }
-            if (weight != null) Text("+${fmtWeight(weight)} kg", style = LhType.stat, color = c.primary, modifier = Modifier.padding(top = 4.dp))
-            if (prev != null) Text("Last time: $prev", style = LhType.body, color = c.mutedForeground, modifier = Modifier.padding(top = 6.dp).testTag("set-prev"))
+        } else {
+            // Always-visible scroll rulers, prefilled with the target (or the plan's remembered progress).
+            key(set.id) {
+                // Ranges grow with the set's own numbers (user-defined exercises can go past the defaults); 999 = input cap.
+                val planned = maxOf(set.targetValue ?: 0, WorkoutOps.prefill(set).value.toIntOrNull() ?: 0).toDouble()
+                val maxKg = maxOf(300.0, (set.weightKg ?: 0.0) * 2)
+                Row(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LhRuler(
+                        input.weight.toDoubleOrNull() ?: 0.0, { a.onWeight(WorkoutOps.weightInput(it)) }, "Weight",
+                        Modifier.weight(1f).fillMaxHeight(), min = 0.0, max = maxKg, step = 0.5, labelEvery = 10, unit = "kg", height = null,
+                    )
+                    if (seconds) LhRuler(
+                        (input.value.toIntOrNull() ?: 0).toDouble(), { a.onValue(it.toInt().toString()) }, "Seconds",
+                        Modifier.weight(1f).fillMaxHeight(), min = 0.0, max = maxOf(600.0, planned * 2).coerceAtMost(999.0), step = 5.0, labelEvery = 6, unit = "s", height = null,
+                    ) else LhRuler(
+                        (input.value.toIntOrNull() ?: 0).toDouble(), { a.onValue(it.toInt().toString()) }, "Reps",
+                        Modifier.weight(1f).fillMaxHeight(), min = 0.0, max = maxOf(100.0, planned * 2).coerceAtMost(999.0), step = 1.0, labelEvery = 5, height = null,
+                    )
+                }
+            }
         }
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when {
                 hold -> {
                     LhButton("Stop & Done", { a.onFinishHold(false) }, Modifier.fillMaxWidth(), size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.Stop)
                     LhButton("Cancel hold", a.onCancelHold, Modifier.fillMaxWidth(), LhButtonVariant.Tonal, LhButtonSize.Md)
                 }
-                set.targetType == TargetType.SECONDS -> {
-                    LhButton("Start hold", a.onStartHold, Modifier.fillMaxWidth(), size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.PlayArrow, enabled = !busy)
-                    SecondaryRow(busy, a, { adjust = true })
-                }
                 else -> {
-                    LhButton(
-                        "Done", { if (canDone) onDone(null) else entry = true }, Modifier.fillMaxWidth(),
-                        size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.Check, enabled = !busy,
-                    )
-                    SecondaryRow(busy, a, { adjust = true })
+                    if (seconds) LhButton("Start hold timer", a.onStartHold, Modifier.fillMaxWidth(), LhButtonVariant.Tonal, LhButtonSize.Md, Icons.Outlined.PlayArrow, enabled = !busy)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LhButton("Skip", a.onSkipSet, Modifier.weight(1f), LhButtonVariant.Outline, LhButtonSize.Lg, Icons.Outlined.SkipNext, enabled = !busy)
+                        LhButton(
+                            "Done", { onDone(if (raw.value.isBlank()) input else null) }, Modifier.weight(2f).testTag("focus-done"),
+                            size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.Check, enabled = !busy && canDone,
+                        )
+                    }
                 }
             }
         }
-    }
-    if (adjust) AdjustSheet(ui, set, { adjust = false }, a)
-    if (entry) ValueEntrySheet(set, input, { entry = false }) { v -> entry = false; onDone(v) }
-}
-
-@Composable
-private fun SecondaryRow(busy: Boolean, a: LiveActions, onAdjust: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        LhButton("Skip", a.onSkipSet, Modifier.weight(1f), LhButtonVariant.Outline, LhButtonSize.Md, Icons.Outlined.SkipNext, enabled = !busy)
-        LhButton("Adjust", onAdjust, Modifier.weight(1f), LhButtonVariant.Outline, LhButtonSize.Md, Icons.Outlined.Tune, enabled = !busy)
-    }
-}
-
-@Composable
-private fun AdjustSheet(ui: LiveUi, set: SessionSet, onDismiss: () -> Unit, a: LiveActions) {
-    val sameLater = ui.sets.any { it.exerciseOrder == set.exerciseOrder && it.setIndex > set.setIndex && it.status == SetStatus.PENDING }
-    LhBottomSheet(onDismiss, title = "Adjust set") {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            LhStepper(ui.input.weight, a.onWeight, 0.5, Modifier.weight(1f), label = "Weight", suffix = "kg", decimals = 1, max = 500.0, placeholder = "–")
-            if (set.targetType == TargetType.SECONDS) {
-                LhStepper(ui.input.value, a.onValue, 5.0, Modifier.weight(1f).testTag("dock-value"), label = "Seconds", suffix = "s", max = 999.0)
-            } else {
-                LhStepper(ui.input.value, a.onValue, 1.0, Modifier.weight(1f).testTag("dock-value"), label = "Reps", placeholder = if (set.targetType == TargetType.MAX) "max" else null)
-            }
-        }
-        if (sameLater && WorkoutOps.weightChanged(set, ui.input)) {
-            LhButton("Apply weight to remaining", a.onApplyWeight, Modifier.padding(top = 12.dp), LhButtonVariant.Tonal, LhButtonSize.Sm, Icons.Outlined.Check)
-        }
-        LhButton("Apply", onDismiss, Modifier.fillMaxWidth().padding(vertical = 16.dp), size = LhButtonSize.Lg)
-    }
-}
-
-/** MAX sets (and any set without a value) need the actual number before logging. */
-@Composable
-private fun ValueEntrySheet(set: SessionSet, input: SetInput, onDismiss: () -> Unit, onLog: (SetInput) -> Unit) {
-    var value by remember { mutableStateOf(input.value) }
-    var weight by remember { mutableStateOf(input.weight) }
-    val seconds = set.targetType == TargetType.SECONDS
-    val ok = WorkoutOps.canComplete(SetInput(weight, value))
-    LhBottomSheet(onDismiss, title = if (seconds) "How many seconds?" else "How many reps?") {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            LhStepper(weight, { weight = it }, 0.5, Modifier.weight(1f), label = "Weight", suffix = "kg", decimals = 1, max = 500.0, placeholder = "–")
-            LhStepper(value, { value = it }, if (seconds) 5.0 else 1.0, Modifier.weight(1f).testTag("dock-value"), label = if (seconds) "Seconds" else "Reps", suffix = if (seconds) "s" else null, max = 999.0)
-        }
-        LhButton("Log set", { onLog(SetInput(weight, value)) }, Modifier.fillMaxWidth().padding(vertical = 16.dp), size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.Check, enabled = ok)
     }
 }
 

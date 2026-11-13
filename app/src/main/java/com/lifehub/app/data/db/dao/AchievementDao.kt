@@ -21,4 +21,6 @@ import kotlinx.coroutines.flow.Flow
     @Query("DELETE FROM achievements WHERE goalId = :goalId") suspend fun deleteByGoal(goalId: String)
     @Query("DELETE FROM achievements WHERE sessionId = :sessionId AND kind IN ('PR_REPS','PR_HOLD','PR_WEIGHT')") suspend fun deletePrsBySession(sessionId: String)
     @Query("DELETE FROM achievements") suspend fun deleteAll()
+    /** Legacy consistency rows (perfect week/month, protein week, session milestones): replaced by the streak. */
+    @Query("DELETE FROM achievements WHERE kind IN ('PERFECT_WEEK_TRAINING','PERFECT_MONTH_TRAINING','PROTEIN_WEEK','SESSION_MILESTONE')") suspend fun deleteConsistency()
 }

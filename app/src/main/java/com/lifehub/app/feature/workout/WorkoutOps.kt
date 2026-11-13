@@ -107,6 +107,26 @@ object WorkoutOps {
         return SetInput(w, v)
     }
 
+    /** Ruler weight -> dock text ("" = no weight / bodyweight). */
+    fun weightInput(kg: Double): String = if (kg <= 0.0) "" else weightText(kg)
+
+    /**
+     * Ruler start value when the set has none (MAX sets): what was done on the same set last time, else on the
+     * previous set of this exercise in this session, else 30 s for a hold, else 1 rep.
+     */
+    fun fallbackValue(set: SessionSet, sameSession: List<SessionSet>, last: SessionSet?): String {
+        fun v(s: SessionSet?) = s?.takeIf { it.status == SetStatus.DONE }?.let { if (it.targetType == TargetType.SECONDS) it.actualSeconds else it.actualReps }
+        return (v(last) ?: sameSession.filter { it.exerciseOrder == set.exerciseOrder && it.setIndex < set.setIndex }
+            .sortedByDescending { it.setIndex }.firstNotNullOfOrNull { v(it) } ?: if (set.targetType == TargetType.SECONDS) 30 else 1).toString()
+    }
+
+    /**
+     * After a set is done with a weight different from its planned one, the remaining PENDING sets of that exercise
+     * take the same weight (no more "apply to remaining" button).
+     */
+    fun carryWeight(sets: List<SessionSet>, done: SessionSet, plannedWeight: Double?): List<SessionSet> =
+        if (done.weightKg == plannedWeight) emptyList() else applyWeightToRemaining(sets, done.id, done.weightKg)
+
     fun canComplete(input: SetInput): Boolean = input.value.toIntOrNull()?.let { it in 0..999 } == true
 
     /** Parses the input and completes [set]. Returns null if the value is invalid. */

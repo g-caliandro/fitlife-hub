@@ -73,6 +73,21 @@ class WorkoutOpsTest {
         assertEquals(listOf("s0-1", "s0-3"), r.map { it.id }); assertTrue(r.all { it.weightKg == 12.5 })
     }
 
+    @Test fun carryWeightToRemainingOnlyWhenChanged() {
+        val l = listOf(set(0, 0, w = 10.0), set(0, 1, w = 10.0), set(0, 2, w = 10.0), set(1, 0, w = 10.0))
+        val done = l[0].copy(status = SetStatus.DONE, weightKg = 12.5)
+        val r = WorkoutOps.carryWeight(l, done, 10.0)
+        assertEquals(listOf("s0-1", "s0-2"), r.map { it.id }); assertTrue(r.all { it.weightKg == 12.5 })
+        assertTrue(WorkoutOps.carryWeight(l, l[0].copy(status = SetStatus.DONE), 10.0).isEmpty())
+    }
+
+    @Test fun rulerFallbackValue() {
+        assertEquals("30", WorkoutOps.fallbackValue(set(0, 0, TargetType.SECONDS, null), emptyList(), null))
+        assertEquals("1", WorkoutOps.fallbackValue(set(0, 0, TargetType.MAX, null), emptyList(), null))
+        val earlier = set(0, 0, TargetType.MAX, null, st = SetStatus.DONE).copy(actualReps = 14)
+        assertEquals("14", WorkoutOps.fallbackValue(set(0, 1, TargetType.MAX, null), listOf(earlier), null))
+    }
+
     @Test fun prefillRules() {
         assertEquals(SetInput("", "6"), WorkoutOps.prefill(set(0, 0)))
         assertEquals(SetInput("", ""), WorkoutOps.prefill(set(0, 0, TargetType.MAX, null)))

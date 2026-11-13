@@ -24,6 +24,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performSemanticsAction
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.lifehub.app.MainActivity
 import com.lifehub.app.container
@@ -158,7 +159,7 @@ abstract class AppTourBase(private val prefix: String) {
         tab("Home")
         waitFor(hasTestTag("home-list"))
         clickDesc("Profile")
-        waitText("Body history")
+        waitText("Targets")
         click("Goals")
         waitText("Muscle Up")
         shot("goals-list")
@@ -178,7 +179,7 @@ abstract class AppTourBase(private val prefix: String) {
         shot("achievements-log")
         back()
         back()
-        waitText("Body history")
+        waitText("Targets")
         shot("you")
         back()
         waitFor(hasTestTag("home-list"))
@@ -253,12 +254,10 @@ abstract class AppTourBase(private val prefix: String) {
         rule.onNodeWithTag("set-3-0", useUnmergedTree = true).performClick()
         title("Explosive pull-up")
 
-        // MAX set: Done asks for the actual reps.
-        click("Done")
-        waitText("Log set")
-        field("dock-value").performTextReplacement("25")
+        // MAX set: the reps ruler is on screen; set 25 and log with Done.
+        rule.onNodeWithTag("ruler-Reps").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(25f) }
         shot("live-max-input")
-        click("Log set")
+        click("Done")
         waitText("New PR", substring = true)
         shot("live-max-pr-banner")
         waitText("Skip rest")
@@ -267,8 +266,8 @@ abstract class AppTourBase(private val prefix: String) {
 
         // SECONDS set: Start hold -> running countdown -> Stop & Done.
         title("Tuck front lever")
-        waitText("Start hold")
-        click("Start hold")
+        waitText("Start hold timer")
+        click("Start hold timer")
         waitText("Stop & Done")
         shot("live-hold-running")
         click("Stop & Done")
@@ -359,7 +358,7 @@ abstract class AppTourBase(private val prefix: String) {
         waitText("Export JSON")
         shot("settings")
         back()
-        waitText("Body history")
+        waitText("Targets")
         back()
         waitFor(hasTestTag("home-list"))
 

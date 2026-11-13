@@ -7,7 +7,10 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import com.lifehub.app.domain.Streak
 import kotlin.random.Random
 import com.lifehub.app.core.designsystem.fmtDate
 import com.lifehub.app.domain.AchievementEngine
@@ -24,6 +27,8 @@ data class RuleInput(
     val unlocked: List<Achievement> = emptyList(),
     /** Days on which an ACHIEVEMENT_MEMORY notification was sent recently. */
     val achievementSentDates: List<LocalDate> = emptyList(),
+    /** Zone used to turn plan creation instants into dates (streak rule). */
+    val zone: ZoneId = ZoneOffset.UTC,
 )
 
 data class PendingNotification(val type: NotifType, val title: String, val text: String, val route: String, val key: String? = null)
@@ -37,6 +42,28 @@ object NotificationRules {
         if (i.settings.notifyProtein && !capped(NotifType.PROTEIN)) protein(i)?.let(::add)
         if (i.settings.notifyWeight && !capped(NotifType.WEIGHT)) weight(i)?.let(::add)
         if (i.settings.notifyAchievements && !capped(NotifType.ACHIEVEMENT_MEMORY)) achievementMemory(i)?.let(::add)
+    }
+
+    /**
+     * Evening streak check (separate worker at [NotificationScheduler.STREAK_TIME], not part of [evaluate] so it never
+     * fires at the daily check time). At most one per day.
+     */
+    fun evaluateStreak(i: RuleInput): PendingNotification? =
+        if (i.settings.notifyStreak && i.lastNotified[NotifType.STREAK] != i.today) streak(i) else null
+
+    /**
+     * Today is a planned day with no completed workout (and none in progress) and there is a streak to lose (> 0).
+     * Thanks to the grace rule (see [Streak]) tomorrow still saves it, unless yesterday was skipped too: then only today.
+     */
+    fun streak(i: RuleInput): PendingNotification? {
+        if (i.hasInProgressToday) return null
+        val st = Streak(i.completed, i.plans, i.today, i.zone)
+        if (!st.atRiskToday) return null
+        val n = st.current.takeIf { it > 0 } ?: return null
+        val matching = i.plans.filter { !it.isArchived && i.today.dayOfWeek.value in it.weekdays }
+        val route = if (matching.size == 1) Routes.workoutStart(matching[0].id) else Routes.workoutStart()
+        val text = if (st.yesterdayPending) "Train today to keep your $n-day streak." else "Train today or tomorrow to keep your $n-day streak."
+        return PendingNotification(NotifType.STREAK, TITLE, text, route)
     }
 
     fun train(i: RuleInput): PendingNotification? {

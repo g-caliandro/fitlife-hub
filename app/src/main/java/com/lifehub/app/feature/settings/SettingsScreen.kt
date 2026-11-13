@@ -188,7 +188,8 @@ fun SettingsScreen(
                     LhSwitchRow("Training reminders", s.notifyTrain, { onNotify(NotifType.TRAIN, it) }, subtitle = "On plan days, or after 3 days off")
                     LhSwitchRow("Protein check", s.notifyProtein, { onNotify(NotifType.PROTEIN, it) }, subtitle = "Mondays, if last week was low")
                     LhSwitchRow("Weigh-in reminder", s.notifyWeight, { onNotify(NotifType.WEIGHT, it) }, subtitle = "After 1 week without a weigh-in")
-                    LhSwitchRow("Achievement memories", s.notifyAchievements, { onNotify(NotifType.ACHIEVEMENT_MEMORY, it) }, subtitle = "Unlocked achievements and anniversaries", showDivider = false)
+                    LhSwitchRow("Achievement memories", s.notifyAchievements, { onNotify(NotifType.ACHIEVEMENT_MEMORY, it) }, subtitle = "Unlocked achievements and anniversaries")
+                    LhSwitchRow("Streak reminder", s.notifyStreak, { onNotify(NotifType.STREAK, it) }, subtitle = "Plan days, 20:00, if not trained", showDivider = false)
                 }
                 Spacer(Modifier.height(12.dp))
                 LhTimePickerField(s.dailyCheckTime, onTime, label = "Daily check time", modifier = Modifier.fillMaxWidth())

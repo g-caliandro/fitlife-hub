@@ -23,7 +23,7 @@ import com.lifehub.app.data.repo.PlanRepository
 import com.lifehub.app.data.repo.SessionRepository
 import com.lifehub.app.di.AppContainer
 import com.lifehub.app.domain.DayNutrition
-import com.lifehub.app.domain.loggingStreak
+import com.lifehub.app.domain.Streak
 import com.lifehub.app.domain.planProgress
 import com.lifehub.app.domain.timeProgress
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,8 +52,12 @@ data class HomeUiState(
     val carbsTargetG: Int? = null,
     val fatTargetG: Int? = null,
     val todayFood: List<FoodEntry> = emptyList(),
-    /** Consecutive days with food or quick-add macros logged (ONT streak chip); 0 hides the chip. */
+    /** Training streak (see [Streak]): trained or rest days in a row; 0 = no streak (header shows a grey flame). */
     val streakDays: Int = 0,
+    /** Today's workout extended the streak and the celebration wasn't shown yet today. */
+    val celebrateStreak: Boolean = false,
+    /** Last 7 days (oldest first) for the celebration week strip. */
+    val streakWeek: List<Pair<LocalDate, com.lifehub.app.domain.StreakDay>> = emptyList(),
 )
 
 data class TodayPlan(
@@ -67,11 +71,11 @@ internal fun plansOn(date: LocalDate, plans: List<PlanWithExercises>, completed:
         TodayPlan(p.plan.id, p.plan.name, completed.any { it.planId == p.plan.id && it.date == date }, p.plan.dayType, p.exercises.size)
     }
 
-private data class Extras(val today: DayNutrition?, val body: BodyEntry?, val streak: Int)
+private data class Extras(val today: DayNutrition?, val body: BodyEntry?)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
-    settings: SettingsRepository,
+    private val settings: SettingsRepository,
     goals: GoalRepository,
     plans: PlanRepository,
     sessions: SessionRepository,
@@ -79,16 +83,17 @@ class HomeViewModel(
     body: BodyRepository,
     time: TimeSource,
 ) : ViewModel() {
+    /** Re-emits after the celebration is dismissed so [HomeUiState.celebrateStreak] turns false. */
+    private val celebrated = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     val state: StateFlow<HomeUiState?> = time.todayFlow().flatMapLatest { today ->
-        val streak = food.observeNutrition(today.minusDays(730), today).map { n ->
-            loggingStreak(n.filter { it.entries.isNotEmpty() || it.quickAdd != null }.map { it.date }.toSet(), today)
-        }
-        val extras = combine(food.observeNutrition(today, today), body.observeAll(), streak) { m, b, k ->
-            Extras(m.firstOrNull(), b.maxByOrNull { it.date }, k)
+        val extras = combine(food.observeNutrition(today, today), body.observeAll(), celebrated) { m, b, _ ->
+            Extras(m.firstOrNull(), b.maxByOrNull { it.date })
         }
         val goalData = combine(goals.observeGoals(), plans.observePlans(), sessions.observeCompleted()) { g, p, s -> Triple(g, p, s) }
         combine(goalData, settings.settings, sessions.observeInProgress(), extras) { (g, p, allDone), st, ip, ex ->
             val planList: List<Plan> = p.map { it.plan }
+            val streak = Streak(allDone, planList, today, time.zone)
             HomeUiState(
                 today, st.proteinTargetG,
                 g.filter { it.goal.state == GoalState.ACTIVE }.sortedBy { it.goal.deadline }.map {
@@ -102,10 +107,17 @@ class HomeViewModel(
                 latestBody = ex.body,
                 kcalTarget = st.kcalTarget, carbsTargetG = st.carbsTargetG, fatTargetG = st.fatTargetG,
                 todayFood = ex.today?.entries.orEmpty(),
-                streakDays = ex.streak,
+                streakDays = streak.current,
+                celebrateStreak = streak.extendedToday && settings.streakCelebratedOn() != today,
+                streakWeek = streak.days(today.minusDays(6), today).toList(),
             ) as HomeUiState?
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun streakCelebrated() {
+        state.value?.let { settings.setStreakCelebratedOn(it.today) }
+        celebrated.value++
+    }
 
     companion object {
         fun factory(c: AppContainer) = viewModelFactory {

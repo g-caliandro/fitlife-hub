@@ -20,6 +20,8 @@ data class Settings(
     val notifyProtein: Boolean = true,
     val notifyWeight: Boolean = true,
     val notifyAchievements: Boolean = true,
+    /** Evening "keep your streak" reminder on planned days without a workout (fixed time, see NotificationScheduler). */
+    val notifyStreak: Boolean = true,
     val dailyCheckTime: LocalTime = LocalTime.of(18, 0),   // pref key "dailyCheckMinute": Int minute-of-day
     val homePeriod: HomePeriod = HomePeriod.ONE_WEEK,
     val timezone: String = ZoneId.systemDefault().id,        // informational
@@ -45,6 +47,7 @@ class SettingsRepository(context: Context) {
             notifyProtein = prefs.getBoolean("notifyProtein", d.notifyProtein),
             notifyWeight = prefs.getBoolean("notifyWeight", d.notifyWeight),
             notifyAchievements = prefs.getBoolean("notifyAchievements", d.notifyAchievements),
+            notifyStreak = prefs.getBoolean("notifyStreak", d.notifyStreak),
             dailyCheckTime = LocalTime.ofSecondOfDay(prefs.getInt("dailyCheckMinute", d.dailyCheckTime.hour * 60 + d.dailyCheckTime.minute) * 60L),
             homePeriod = prefs.getString("homePeriod", null)
                 ?.let { n -> HomePeriod.entries.firstOrNull { it.name == n } } ?: d.homePeriod,
@@ -62,6 +65,7 @@ class SettingsRepository(context: Context) {
             .putBoolean("notifyProtein", s.notifyProtein)
             .putBoolean("notifyWeight", s.notifyWeight)
             .putBoolean("notifyAchievements", s.notifyAchievements)
+            .putBoolean("notifyStreak", s.notifyStreak)
             .putInt("dailyCheckMinute", s.dailyCheckTime.hour * 60 + s.dailyCheckTime.minute)
             .putString("homePeriod", s.homePeriod.name)
             .putString("timezone", s.timezone)
@@ -81,6 +85,7 @@ class SettingsRepository(context: Context) {
             NotifType.PROTEIN -> current().copy(notifyProtein = enabled)
             NotifType.WEIGHT -> current().copy(notifyWeight = enabled)
             NotifType.ACHIEVEMENT_MEMORY -> current().copy(notifyAchievements = enabled)
+            NotifType.STREAK -> current().copy(notifyStreak = enabled)
         }
     )
 
@@ -97,6 +102,10 @@ class SettingsRepository(context: Context) {
     }
 
     // ---- achievements bookkeeping (not exported) ----
+    /** Last day the "streak extended" celebration was shown (once per day). */
+    fun streakCelebratedOn(): LocalDate? = prefs.getString("streakCelebratedOn", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    fun setStreakCelebratedOn(date: LocalDate) { prefs.edit().putString("streakCelebratedOn", date.toString()).apply() }
+
     fun dismissedAchievementKeys(): Set<String> = prefs.getStringSet("dismissedAchievementKeys", emptySet()).orEmpty().toSet()
     fun dismissAchievementKey(key: String) { prefs.edit().putStringSet("dismissedAchievementKeys", dismissedAchievementKeys() + key).apply() }
     fun clearDismissedAchievementKeys() { prefs.edit().remove("dismissedAchievementKeys").apply() }

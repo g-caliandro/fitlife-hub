@@ -54,7 +54,7 @@ object CsvExporter {
         val st = s.settings
         table("settings.csv", "key,value", listOf(
             csv("proteinTargetG", st.proteinTargetG), csv("kcalTarget", st.kcalTarget), csv("carbsTargetG", st.carbsTargetG), csv("fatTargetG", st.fatTargetG), csv("notifyTrain", st.notifyTrain), csv("notifyProtein", st.notifyProtein),
-            csv("notifyWeight", st.notifyWeight), csv("notifyAchievements", st.notifyAchievements), csv("dailyCheckTime", String.format("%02d:%02d", st.dailyCheckTime.hour, st.dailyCheckTime.minute)),
+            csv("notifyWeight", st.notifyWeight), csv("notifyAchievements", st.notifyAchievements), csv("notifyStreak", st.notifyStreak), csv("dailyCheckTime", String.format("%02d:%02d", st.dailyCheckTime.hour, st.dailyCheckTime.minute)),
             csv("homePeriod", st.homePeriod), csv("timezone", st.timezone),
         ))
         out["README.txt"] = JsonCodec.README + "\n\nschemaVersion: ${JsonCodec.SCHEMA_VERSION}\nexportedAt: " +

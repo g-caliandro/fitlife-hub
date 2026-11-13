@@ -18,7 +18,7 @@ object Notifier {
 
     fun channelFor(t: NotifType) = when (t) {
         NotifType.TRAIN -> Channels.TRAIN; NotifType.PROTEIN -> Channels.PROTEIN; NotifType.WEIGHT -> Channels.WEIGHT
-        NotifType.ACHIEVEMENT_MEMORY -> Channels.ACHIEVEMENT
+        NotifType.ACHIEVEMENT_MEMORY -> Channels.ACHIEVEMENT; NotifType.STREAK -> Channels.STREAK
     }
 
     /** Returns true if the notification was handed to the system. */

@@ -100,7 +100,13 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
         snap.map { sn -> sn.data?.sets?.map { it.exerciseId }?.toSet().orEmpty() }.distinctUntilChanged()
             .map { ids -> ids.associateWith { c.sessions.previousSets(it) } }
     val ui: StateFlow<LiveUi> = combine(base, dayType, history.onStart { emit(emptyMap()) }) { u, t, h ->
-        u.copy(dayType = t, previous = WorkoutOps.previousLabels(u.sets, h))
+        val f = u.focused
+        // MAX sets have no target: start the ruler from last time's value instead of an empty field.
+        val input = if (f != null && f.status == SetStatus.PENDING && u.input.value.isBlank()) {
+            val blockIdx = u.sets.filter { it.exerciseOrder == f.exerciseOrder }.sortedBy { it.setIndex }.indexOfFirst { it.id == f.id }
+            u.input.copy(value = WorkoutOps.fallbackValue(f, u.sets, h[f.exerciseId]?.getOrNull(blockIdx)))
+        } else u.input
+        u.copy(dayType = t, previous = WorkoutOps.previousLabels(u.sets, h), input = input)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LiveUi())
 
@@ -163,7 +169,10 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
             if (set.status != SetStatus.DONE) celebrateIfPr(completed, u.sets)
             c.sessions.upsertSet(completed)
             if (set.status == SetStatus.DONE) return@launch      // "Update": stay put, no rest
-            val after = u.sets.map { if (it.id == set.id) completed else it }
+            val carried = WorkoutOps.carryWeight(u.sets, completed, set.weightKg)
+            if (carried.isNotEmpty()) c.sessions.upsertSets(carried)
+            val byId = carried.associateBy { it.id }
+            val after = u.sets.map { if (it.id == set.id) completed else byId[it.id] ?: it }
             val at = u.sets.indexOfFirst { it.id == set.id }
             val next = WorkoutOps.nextPendingIndex(after, at)
             val rest = if (next != null && set.restSeconds > 0) now.plusSeconds(set.restSeconds.toLong()) else null
@@ -290,14 +299,19 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
         viewModelScope.launch { c.sessions.updateSession(s.copy(restEndsAt = null)) }
     }
 
-    fun finish(notes: String?, rpe: Int?, onDone: () -> Unit) {
+    /** [onDone] receives the plan targets that were raised for next time (e.g. "Pull-up 9 reps"). */
+    fun finish(notes: String?, rpe: Int?, onDone: (List<String>) -> Unit) {
         val s = session ?: return
         leaving = true
         RestAlarm.cancel(c.appContext)
+        val sets = cur.sets
         viewModelScope.launch {
             c.sessions.finish(s.id, notes?.trim()?.ifEmpty { null }, rpe, now)
             try { c.achievements.onSessionFinished(s.id, now) } catch (_: Exception) {}
-            onDone()
+            val raised = try {
+                s.planId?.let { pid -> c.plans.raiseTargets(pid, sets) }.orEmpty()
+            } catch (_: Exception) { emptyList() }
+            onDone(raised)
         }
     }
 

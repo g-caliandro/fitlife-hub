@@ -75,6 +75,25 @@ class ExportImportTest {
         assertTrue(backup.snapshot().foodEntries.isEmpty() && backup.snapshot().foods.isEmpty())
     }
 
+    @Test fun legacyConsistencyAchievementsAreDroppedOnImport() = runBlocking {
+        val legacy = com.lifehub.app.data.model.Achievement("old", com.lifehub.app.data.model.AchievementKind.PERFECT_WEEK_TRAINING,
+            "Perfect training week", null, 3.0, "sessions", null, null, null, LocalDate.of(2026, 11, 8), java.time.Instant.EPOCH, "PERFECT_WEEK:2026-W45")
+        val decoded = JsonCodec.decode(JsonCodec.encode(snap.copy(achievements = snap.achievements + legacy), at, "0.1.0"))
+        backup.replaceAll(decoded)
+        val stored = backup.snapshot().achievements
+        assertTrue(stored.none { it.kind.isConsistency })
+        assertEquals(snap.achievements.size, stored.size)
+    }
+
+    @Test fun streakReminderSettingRoundTripsAndDefaultsOn() {
+        val off = snap.copy(settings = snap.settings.copy(notifyStreak = false))
+        assertFalse(JsonCodec.decode(JsonCodec.encode(off, at, "0.1.0")).settings.notifyStreak)
+        // Older exports have no "notifyStreak": on by default.
+        val old = JsonCodec.encode(snap, at, "0.1.0").replace(Regex(",\\s*\"notifyStreak\": (true|false)"), "")
+        assertFalse(old.contains("notifyStreak"))
+        assertTrue(JsonCodec.decode(old).settings.notifyStreak)
+    }
+
     @Test fun rejectsBadSchemaAndGarbage() {
         val bad = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 6", "\"schemaVersion\": 99")
         assertThrows(ImportException::class.java) { JsonCodec.decode(bad) }

@@ -49,7 +49,7 @@ object JsonCodec {
             s.settings.proteinTargetG, s.settings.notifyTrain, s.settings.notifyProtein, s.settings.notifyWeight, s.settings.notifyAchievements,
             String.format("%02d:%02d", s.settings.dailyCheckTime.hour, s.settings.dailyCheckTime.minute),
             s.settings.homePeriod, s.settings.timezone,
-            s.settings.kcalTarget, s.settings.carbsTargetG, s.settings.fatTargetG,
+            s.settings.kcalTarget, s.settings.carbsTargetG, s.settings.fatTargetG, notifyStreak = s.settings.notifyStreak,
         ),
         goals = s.goals.map { g ->
             GoalDto(
@@ -124,6 +124,7 @@ object JsonCodec {
         val settings = Settings(
             proteinTargetG = st.proteinTargetG.coerceIn(0, 500),
             notifyTrain = st.notifyTrain, notifyProtein = st.notifyProtein, notifyWeight = st.notifyWeight, notifyAchievements = st.notifyAchievements,
+            notifyStreak = st.notifyStreak,
             dailyCheckTime = runCatching { LocalTime.parse(st.dailyCheckTime) }.getOrDefault(def.dailyCheckTime),
             homePeriod = st.homePeriod, timezone = st.timezone ?: def.timezone,
             kcalTarget = st.kcalTarget, carbsTargetG = st.carbsTargetG, fatTargetG = st.fatTargetG,

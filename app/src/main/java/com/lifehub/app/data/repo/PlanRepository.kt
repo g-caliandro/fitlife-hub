@@ -18,6 +18,11 @@ interface PlanRepository {
     suspend fun save(plan: Plan, exercises: List<PlanExercise>, links: List<GoalPlanLink>)
     suspend fun duplicate(id: String, now: Instant): String               // returns new id; "<name> (copy)", no links
     suspend fun setArchived(id: String, archived: Boolean)
+    /**
+     * Progressive overload memory: raises the plan's targets to what was achieved in [sets] (a finished session of
+     * [planId]), see [com.lifehub.app.domain.Progression]. Returns short labels of the raised targets.
+     */
+    suspend fun raiseTargets(planId: String, sets: List<com.lifehub.app.data.model.SessionSet>): List<String>
     suspend fun delete(id: String)                                       // sessions keep planName, planId -> NULL
 }
 
@@ -75,4 +80,10 @@ class PlanRepositoryImpl(private val db: LifeHubDatabase) : PlanRepository {
     }
 
     override suspend fun delete(id: String) = dao.delete(id)
+
+    override suspend fun raiseTargets(planId: String, sets: List<com.lifehub.app.data.model.SessionSet>): List<String> {
+        val raised = com.lifehub.app.domain.Progression.raise(dao.getExercises(planId), sets)
+        if (raised.isNotEmpty()) dao.upsertExercises(raised.map { it.updated })
+        return raised.map { it.label }
+    }
 }

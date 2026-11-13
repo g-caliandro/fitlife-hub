@@ -57,8 +57,9 @@ class MockAchievementsTest {
 
     @Test fun richLog() {
         val kinds = s.achievements.map { it.kind }.toSet()
-        assertTrue(kinds.containsAll(setOf(AchievementKind.GOAL_ACHIEVED, AchievementKind.PR_REPS, AchievementKind.PR_HOLD,
-            AchievementKind.PERFECT_MONTH_TRAINING, AchievementKind.PERFECT_WEEK_TRAINING, AchievementKind.PROTEIN_WEEK, AchievementKind.SESSION_MILESTONE)))
+        assertTrue(kinds.containsAll(setOf(AchievementKind.GOAL_ACHIEVED, AchievementKind.PR_REPS, AchievementKind.PR_HOLD)))
+        // Consistency is the training streak now, never stored as achievements.
+        assertTrue(kinds.none { it.isConsistency })
         assertEquals(s.achievements.size, s.achievements.map { it.dedupeKey }.toSet().size)
     }
 

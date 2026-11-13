@@ -23,11 +23,11 @@ interface AchievementRepository {
     suspend fun delete(id: String)
     /** DONE sets of an exercise in completed sessions (live PR detection). */
     suspend fun historySets(exerciseId: String): List<SessionSet>
-    /** Persist PRs + session milestones of a just finished session. Returns the newly stored ones. */
+    /** Persist PRs of a just finished session. Returns the newly stored ones. */
     suspend fun onSessionFinished(sessionId: String, now: Instant): List<Achievement>
     /** Removes PR achievements tied to [sessionId] (before re-detection after an edit). */
     suspend fun resetSession(sessionId: String)
-    /** Idempotent detection of period achievements, milestones and goals for completed periods. */
+    /** Idempotent detection of goal achievements; also purges legacy consistency rows (now shown as the streak). */
     suspend fun detectPeriods(today: LocalDate, proteinTargetG: Int, zone: ZoneId, now: Instant): List<Achievement>
     /** Full backfill from history (after import); forgets user deletions. */
     suspend fun recalculate(today: LocalDate, proteinTargetG: Int, zone: ZoneId, now: Instant): List<Achievement>
@@ -76,20 +76,20 @@ class AchievementRepositoryImpl(private val db: LifeHubDatabase, private val set
         val priors = HashMap<String, Bests>()
         allSets.filter { it.sessionId in before }.forEach { priors[it.exerciseId] = (priors[it.exerciseId] ?: Bests()).plus(it) }
         val prs = AchievementEngine.sessionPrs(session, allSets.filter { it.sessionId == session.id }, priors)
-        val h = AchievementHistory(session.date, all, emptyList(), emptyList(), emptyList(), emptyList(), 0)
-        val milestones = AchievementEngine.milestones(h).filter { it.sessionId == session.id }
-        store(prs + milestones, now, respectDismissed = true)
+        store(prs, now, respectDismissed = true)
     }
 
     override suspend fun detectPeriods(today: LocalDate, proteinTargetG: Int, zone: ZoneId, now: Instant): List<Achievement> =
         db.withTransaction {
+            dao.deleteConsistency()
             val h = history(today, proteinTargetG, zone)
-            store(AchievementEngine.periods(h) + AchievementEngine.milestones(h) + AchievementEngine.goals(h), now, respectDismissed = true)
+            store(AchievementEngine.goals(h), now, respectDismissed = true)
         }
 
     override suspend fun recalculate(today: LocalDate, proteinTargetG: Int, zone: ZoneId, now: Instant): List<Achievement> =
         db.withTransaction {
             settings.clearDismissedAchievementKeys()
+            dao.deleteConsistency()
             store(AchievementEngine.backfill(history(today, proteinTargetG, zone)), now, respectDismissed = false)
         }
 }

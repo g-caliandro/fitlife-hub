@@ -2,6 +2,8 @@ package com.lifehub.app.screens
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertTextEquals
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.lifehub.app.core.designsystem.LhTheme
 import com.lifehub.app.data.model.SessionSet
@@ -55,6 +57,19 @@ class LiveWorkoutScreenshotTest {
     @Test fun livePr() = shot("live-workout-pr", ui(2, pr = PrBanner(1, "New PR · 12 reps Pull-up")))
     @Test fun livePrDark() = shot("live-workout-pr-dark", ui(2, pr = PrBanner(1, "New PR · 12 reps Pull-up")), dark = true)
     @Test fun liveMax() = shot("live-workout-max", ui(6))
+
+    /** Seconds ruler on a user-defined hold with an off-grid target (32 s on a 5 s ruler) and a weight. */
+    private fun customHold(): LiveUi {
+        val ss = sets.map { if (it.exerciseOrder == 3) it.copy(exerciseName = "Wall sit (weighted)", exerciseId = "user-wall-sit", targetValue = 32, weightKg = 12.5) else it }
+        return ui(7).copy(sets = ss, input = WorkoutOps.prefill(ss[7]))
+    }
+    @Test fun liveSecondsRuler() = shot("live-workout-seconds-ruler", customHold())
+    @Test fun liveSecondsRulerDark() = shot("live-workout-seconds-ruler-dark", customHold(), dark = true)
+    @Test fun secondsRulerShowsTheExactTarget() {
+        rule.setContent { LhTheme { LiveWorkoutScreen(customHold(), now, LiveActions()) } }
+        rule.onNodeWithTag("ruler-value-Seconds", useUnmergedTree = true).assertTextEquals("32 s")
+        rule.onNodeWithTag("ruler-value-Weight", useUnmergedTree = true).assertTextEquals("12.5 kg")
+    }
 
     @Test fun finishSummary() = sheet("finish-summary", false)
     @Test fun finishSummaryDark() = sheet("finish-summary-dark", true)

@@ -72,8 +72,8 @@ fun YouRoute(onNavigate: (String) -> Unit, onBack: () -> Unit = {}) {
     }.joinToString(" · ")
     YouScreen(
         YouState(latest?.weightKg, fat, latest?.let { ChronoUnit.DAYS.between(it.date, today) },
-            goals.count { it.goal.state == GoalState.ACTIVE }, ach.size,
-            s.notifyTrain || s.notifyProtein || s.notifyWeight || s.notifyAchievements, targets),
+            goals.count { it.goal.state == GoalState.ACTIVE }, ach.count { !it.kind.isConsistency },
+            s.notifyTrain || s.notifyProtein || s.notifyWeight || s.notifyAchievements || s.notifyStreak, targets),
         onNavigate, today, onBack,
     )
 }
@@ -110,8 +110,7 @@ fun YouScreen(state: YouState, onNavigate: (String) -> Unit, today: java.time.Lo
                 Group("Progress")
                 LhGroupCard {
                     Row(Icons.Outlined.Flag, "Goals", if (state.activeGoals == 0) "No active goals" else "${state.activeGoals} active", { onNavigate(Routes.GOALS) }, true)
-                    Row(Icons.Outlined.EmojiEvents, "Achievements", if (state.achievements == 0) "Your milestones" else "${state.achievements} unlocked", { onNavigate(Routes.ACHIEVEMENTS) }, true)
-                    Row(Icons.Outlined.MonitorWeight, "Body history", state.weightKg?.let { "Last: ${fmtKg(it)} kg" } ?: "No entries yet", { onNavigate(Routes.BODY) }, false)
+                    Row(Icons.Outlined.EmojiEvents, "Achievements", if (state.achievements == 0) "Your milestones" else "${state.achievements} unlocked", { onNavigate(Routes.ACHIEVEMENTS) }, false)
                 }
                 Group("Nutrition")
                 LhGroupCard { Row(Icons.Outlined.TrackChanges, "Targets", state.targetsSummary, { onNavigate(Routes.TARGETS) }, false) }

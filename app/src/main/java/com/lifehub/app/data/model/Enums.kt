@@ -30,7 +30,8 @@ enum class TargetType { REPS, MAX, SECONDS }          // Exercise.defaultTargetT
 enum class SessionStatus { IN_PROGRESS, COMPLETED }
 enum class SetStatus { PENDING, DONE, SKIPPED }
 enum class HomePeriod(val days: Int) { ONE_WEEK(7), TWO_WEEKS(14) }
-enum class NotifType { TRAIN, PROTEIN, WEIGHT, ACHIEVEMENT_MEMORY }
+/** Order matters: the ordinal is the notification id / request code, so new types go at the end. */
+enum class NotifType { TRAIN, PROTEIN, WEIGHT, ACHIEVEMENT_MEMORY, STREAK }
 
 enum class AchievementKind {
     GOAL_ACHIEVED, PR_REPS, PR_HOLD, PR_WEIGHT, PERFECT_WEEK_TRAINING, PERFECT_MONTH_TRAINING, PROTEIN_WEEK, SESSION_MILESTONE;

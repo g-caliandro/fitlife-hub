@@ -9,12 +9,7 @@ import java.time.LocalDate
 
 class StreakTest {
     private val today = LocalDate.of(2026, 11, 12)
-    private fun days(vararg back: Long) = back.map { today.minusDays(it) }.toSet()
 
-    @Test fun countsConsecutiveDaysEndingToday() = assertEquals(3, loggingStreak(days(0, 1, 2, 4), today))
-    @Test fun todayEmptyKeepsYesterdaysStreak() = assertEquals(2, loggingStreak(days(1, 2), today))
-    @Test fun brokenStreakIsZero() = assertEquals(0, loggingStreak(days(2, 3), today))
-    @Test fun emptyIsZero() = assertEquals(0, loggingStreak(emptySet(), today))
 
     @Test fun macroAveragesOverLoggedDaysOnly() {
         fun m(d: Long, p: Int, c: Int, f: Int) = MacroDay(today.minusDays(d), p, c, f, 4 * p + 4 * c + 9 * f, true, Instant.EPOCH)

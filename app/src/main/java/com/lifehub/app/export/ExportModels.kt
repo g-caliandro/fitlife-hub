@@ -45,6 +45,7 @@ data class SettingsDto(
     val kcalTarget: Int? = null,
     val carbsTargetG: Int? = null,
     val fatTargetG: Int? = null,
+    val notifyStreak: Boolean = true,
 )
 
 @Serializable data class PlanLinkDto(val planId: String, val sessionsNeeded: Int? = null)

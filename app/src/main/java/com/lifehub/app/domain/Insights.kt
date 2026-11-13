@@ -131,17 +131,6 @@ fun computeInsights(input: InsightInput): Insights {
     )
 }
 
-/**
- * Logging streak (ONT "x-day streak"): consecutive days with food or quick-add macros logged, ending today — or
- * yesterday when today has nothing yet (the streak is still alive until the day ends). 0 when broken.
- */
-fun loggingStreak(loggedDays: Set<LocalDate>, today: LocalDate): Int {
-    var d = if (today in loggedDays) today else today.minusDays(1)
-    var n = 0
-    while (d in loggedDays) { n++; d = d.minusDays(1) }
-    return n
-}
-
 /** Average carbs / fat / protein (g) over the logged days of [r]; null when nothing logged. */
 data class MacroAverages(val carbsG: Int, val fatG: Int, val proteinG: Int, val kcal: Int, val days: Int)
 
