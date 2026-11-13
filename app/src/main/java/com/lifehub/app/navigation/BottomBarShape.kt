@@ -12,13 +12,12 @@ import kotlin.math.atan2
 import kotlin.math.sqrt
 
 /**
- * Bottom-bar outline with a circular cradle cut into its top edge for a FAB whose center sits on that edge,
- * [fabCenterFromEnd] from the end side. The cradle has radius [cradleRadius] (FAB radius + gap) and meets the
+ * Bottom-bar outline with a circular cradle cut into its top edge, at its horizontal center, for a FAB whose center
+ * sits on that edge. The cradle has radius [cradleRadius] (FAB radius + gap) and meets the
  * top edge through two [shoulderRadius] fillets, each tangent to both the top edge and the cradle, so the outline
  * is G1-continuous (no corners).
  */
 class CradleBarShape(
-    private val fabCenterFromEnd: Dp,
     private val cradleRadius: Dp,
     private val shoulderRadius: Dp,
 ) : Shape {
@@ -34,8 +33,7 @@ class CradleBarShape(
     fun topEdgePath(size: Size, layoutDirection: LayoutDirection, density: Density): Path = with(density) {
         val r = cradleRadius.toPx()
         val s = shoulderRadius.toPx()
-        val fromEnd = fabCenterFromEnd.toPx()
-        val cx = if (layoutDirection == LayoutDirection.Ltr) size.width - fromEnd else fromEnd
+        val cx = size.width / 2
         // Fillet centers sit at (cx ± dx, s): tangent to y=0 from below and externally tangent to the cradle.
         val dx = sqrt((r + s) * (r + s) - s * s)
         val theta = Math.toDegrees(atan2(s, dx).toDouble()).toFloat()

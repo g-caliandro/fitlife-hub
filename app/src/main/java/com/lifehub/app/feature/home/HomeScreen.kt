@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,18 +88,21 @@ fun HomeRoute(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakSeen: () -> Unit = {}) {
+fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakSeen: () -> Unit = {}, modifier: Modifier = Modifier) {
     val c = LhTheme.colors
     val nav = onNavigate
-    Column(Modifier.fillMaxSize().background(c.background)) {
+    // Streak sheet opened from the badge: local UI state only, never marks the daily auto-celebration as seen.
+    var streakOpen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    Column(modifier.fillMaxSize().background(c.background)) {
         // Profile (You) = profile + all settings; replaces the old gear.
         LhScreenHeader(stringResource(R.string.home_title), Icons.Filled.Home, actions = {
-            // Duolingo-style training streak (replaces the consistency achievements); tap -> calendar.
-            if (state != null) StreakBadge(state.streakDays, { nav(Routes.CALENDAR) })
+            // Duolingo-style training streak (replaces the consistency achievements); tap -> streak sheet + week strip.
+            if (state != null) StreakBadge(state.streakDays, { streakOpen = true })
             LhIconAction(Icons.Outlined.AccountCircle, stringResource(R.string.home_profile), { nav(Routes.YOU) }, Modifier.testTag("home-profile"))
         })
         if (state == null) return@Column
-        if (state.celebrateStreak) StreakCelebration(state.streakDays, state.streakWeek, onStreakSeen)
+        if (state.celebrateStreak) StreakCelebration(state.streakDays, state.streakWeek, onDismiss = onStreakSeen)
+        else if (streakOpen) StreakCelebration(state.streakDays, state.streakWeek, extended = false) { streakOpen = false }
         LazyColumn(Modifier.fillMaxSize().testTag("home-list"), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, com.lifehub.app.core.designsystem.components.LocalTabBottomPadding.current)) {
             item {
                 LhSectionHeader(

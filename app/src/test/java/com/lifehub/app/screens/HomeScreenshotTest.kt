@@ -3,6 +3,15 @@ package com.lifehub.app.screens
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import com.lifehub.app.navigation.ActiveWorkoutBar
+import com.lifehub.app.navigation.LhBottomBar
+import com.lifehub.app.navigation.Routes
+import com.lifehub.app.navigation.TabShell
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.lifehub.app.core.designsystem.LhTheme
 import com.lifehub.app.core.ui.GoalCardModel
@@ -78,6 +87,9 @@ private fun sampleState(empty: Boolean = false, training: Training = Training.DU
             FoodEntry("f3", TODAY, null, "Rolled oats", null, 70.0, 260.0, 9.0, 41.0, 5.0, Instant.EPOCH),
         ),
         streakDays = if (empty) 0 else 12,
+        streakWeek = (if (empty) List(7) { StreakDay.NONE } else listOf(
+            StreakDay.TRAINED, StreakDay.REST, StreakDay.FORGIVEN, StreakDay.TRAINED, StreakDay.TRAINED, StreakDay.REST, StreakDay.PENDING,
+        )).mapIndexed { i, st -> TODAY.minusDays(6L - i) to st },
     )
 }
 
@@ -97,4 +109,53 @@ class HomeScreenshotTest {
     @Test fun homeDone() = shot("home-done-light", false, sampleState(training = Training.DONE))
     @Test fun homeRestDay() = shot("home-rest-dark", true, sampleState(training = Training.REST))
     @Test fun homeEmpty() = shot("home-empty-light", false, sampleState(empty = true, training = Training.NONE))
+}
+
+/** Real tab chrome ([TabShell]) around Home: workout banner at the top, centered-notch bar at the bottom. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = "w360dp-h720dp-xxhdpi")
+class HomeShellScreenshotTest {
+    @get:Rule val rule = createComposeRule()
+
+    private fun shot(name: String, dark: Boolean) {
+        rule.setContent {
+            LhTheme(darkTheme = dark) {
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.background(LhTheme.colors.background)) {
+                    TabShell(
+                        banner = { ActiveWorkoutBar("Pull & Bar", 1930, onResume = {}) },
+                        bottomBar = { LhBottomBar(currentPattern = Routes.HOME_ROOT, onTab = {}) },
+                    ) { bottom -> HomeScreen(sampleState(), modifier = androidx.compose.ui.Modifier.padding(bottom = bottom)) }
+                }
+            }
+        }
+        rule.onRoot().captureRoboImage("build/screens/$name.png")
+    }
+
+    @Test fun shellBannerLight() = shot("shell-banner-light", false)
+    @Test fun shellBannerDark() = shot("shell-banner-dark", true)
+}
+
+/** Tapping the Home streak badge opens the streak sheet (on demand, not the daily auto-celebration). */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = "w360dp-h720dp-xxhdpi")
+class StreakBadgeTapScreenshotTest {
+    @get:Rule val rule = createComposeRule()
+
+    private fun shot(name: String, dark: Boolean, empty: Boolean = false) {
+        var seen = 0
+        rule.setContent { LhTheme(darkTheme = dark) { HomeScreen(sampleState(empty = empty), onStreakSeen = { seen++ }) } }
+        rule.onNodeWithTag("home-streak").performClick()
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.onNodeWithTag("streak-celebration").assertExists()
+        rule.onAllNodes(isRoot())[1].captureRoboImage("build/screens/$name.png")
+        rule.onNodeWithTag("streak-continue").performClick()
+        rule.onNodeWithTag("streak-celebration").assertDoesNotExist()
+        org.junit.Assert.assertEquals("manual open must not count as the daily auto-show", 0, seen)
+    }
+
+    @Test fun badgeTapLight() = shot("streak-badge-tap-light", false)
+    @Test fun badgeTapDark() = shot("streak-badge-tap-dark", true)
+    @Test fun badgeTapZero() = shot("streak-badge-tap-zero-light", false, empty = true)
 }

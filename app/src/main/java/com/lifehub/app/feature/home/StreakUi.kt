@@ -68,7 +68,7 @@ import java.util.Locale
 /** Streak flame orange (same in light and dark: it is a "brand" accent like Duolingo's). */
 val StreakOrange = Color(0xFFFF8A00)
 
-/** Home header badge: flame + number (grey flame at 0). The only place the streak is shown. Tap -> Diary. */
+/** Home header badge: flame + number (grey flame at 0). The only place the streak is shown. Tap -> [StreakCelebration] on demand. */
 @Composable
 fun StreakBadge(days: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = LhTheme.colors
@@ -83,15 +83,17 @@ fun StreakBadge(days: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * "Streak extended" celebration (once per day, after the workout that extended it): the flame pops in, the number
- * rolls from yesterday's value to today's, and the last 7 days fill in.
+ * Streak sheet with the last 7 days. [extended] = the once-a-day "streak extended" celebration (after the workout
+ * that extended it): the flame pops in, the number rolls from yesterday's value to today's. Otherwise it is opened on
+ * demand from the badge: no roll, neutral copy, and a grey flame with an encouraging line at 0.
  */
 @Composable
-fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, onDismiss: () -> Unit) {
+fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, extended: Boolean = true, onDismiss: () -> Unit) {
     val c = LhTheme.colors
     val reduced = LhMotion.reduced
+    val on = days > 0
     val pop = remember { Animatable(if (reduced) 1f else 0f) }
-    var shown by remember { mutableIntStateOf(if (reduced) days else (days - 1).coerceAtLeast(0)) }
+    var shown by remember { mutableIntStateOf(if (reduced || !extended) days else (days - 1).coerceAtLeast(0)) }
     LaunchedEffect(Unit) {
         if (!reduced) {
             launch { pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 260f)) }
@@ -99,6 +101,7 @@ fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, onDismi
             shown = days
         }
     }
+    val flame = if (on) StreakOrange else c.mutedForeground.copy(alpha = 0.5f)
     val wobble by rememberInfiniteTransition(label = "flame").animateFloat(
         -4f, 4f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "flame-rot",
     )
@@ -109,27 +112,31 @@ fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, onDismi
         ) {
             Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Box(contentAlignment = Alignment.Center) {
-                    Sparks(pop.value)
+                    if (on) Sparks(pop.value)
                     Icon(
                         Icons.Filled.LocalFireDepartment, null,
-                        Modifier.size(150.dp).scale(pop.value).rotate(if (reduced) 0f else wobble), tint = StreakOrange,
+                        Modifier.size(150.dp).scale(pop.value).rotate(if (reduced || !on) 0f else wobble), tint = flame,
                     )
                 }
                 AnimatedContent(
                     shown, label = "streak-count",
                     transitionSpec = { (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) },
                 ) { n ->
-                    Text("$n", style = LhType.tnum(LhType.display.copy(fontSize = 88.sp, lineHeight = 96.sp)), color = StreakOrange, modifier = Modifier.testTag("streak-count"))
+                    Text("$n", style = LhType.tnum(LhType.display.copy(fontSize = 88.sp, lineHeight = 96.sp)), color = if (on) StreakOrange else c.mutedForeground, modifier = Modifier.testTag("streak-count"))
                 }
-                Text("day streak!", style = LhType.title, color = c.foreground)
+                Text(if (!on) "No streak yet" else if (extended) "day streak!" else "day streak", style = LhType.title, color = c.foreground)
                 Text(
-                    "Workout done. Rest days keep the flame alive. Skipped a planned workout? Make it up the next day.",
+                    when {
+                        !on -> "Finish a workout to light the flame. Rest days keep it alive; skipped a planned workout? Make it up the next day."
+                        extended -> "Workout done. Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
+                        else -> "Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
+                    },
                     style = LhType.body, color = c.mutedForeground, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp),
                 )
                 Spacer(Modifier.height(28.dp))
                 WeekStrip(week)
             }
-            LhButton("Keep it up", onDismiss, Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp).testTag("streak-continue"), size = LhButtonSize.Lg)
+            LhButton(if (on) "Keep it up" else "Got it", onDismiss, Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp).testTag("streak-continue"), size = LhButtonSize.Lg)
         }
     }
 }

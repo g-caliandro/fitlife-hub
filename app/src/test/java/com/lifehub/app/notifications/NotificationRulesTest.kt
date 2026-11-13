@@ -65,11 +65,27 @@ class NotificationRulesTest {
         val n = NotificationRules.streak(input(plans = sunMon, completed = listOf(sess(mon.minusDays(5)))))!!
         assertEquals("Train today to keep your 4-day streak.", n.text)
     }
+    @Test fun streakReminderOnMakeUpDayAfterSkippedPlannedDay() {
+        // Mon (planned) skipped, Tue not planned: Tue is the last day to make Mon up. Wed..Sun 5 + Tue rest = 6.
+        val tue = mon.plusDays(1)
+        val n = NotificationRules.evaluateStreak(streakIn(today = tue, completed = listOf(sess(mon.minusDays(5)))))!!
+        assertEquals(NotifType.STREAK, n.type)
+        assertEquals("Train today to keep your 6-day streak.", n.text)
+        assertTrue(n.route.contains("a")) // the skipped plan is preselected
+    }
+    @Test fun streakReminderOnMakeUpDaySuppressed() {
+        val tue = mon.plusDays(1)
+        val past = sess(mon.minusDays(5))
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = tue, completed = listOf(past, sess(tue)))))  // made up already
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = tue, completed = listOf(past), inProg = true))) // making it up now
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = tue, completed = emptyList())))              // no streak (0)
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = tue, completed = listOf(past), last = mapOf(NotifType.STREAK to tue)))) // once a day
+    }
     @Test fun streakReminderSuppressed() {
         val past = sess(mon.minusDays(5))
         assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past, sess(mon)))))           // trained today
         assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), inProg = true)))       // training now
-        assertNull(NotificationRules.evaluateStreak(streakIn(today = mon.plusDays(1), completed = listOf(past)))) // Tue: not planned
+        assertNull(NotificationRules.evaluateStreak(streakIn(today = mon.plusDays(1), completed = listOf(past, sess(mon))))) // Tue: not planned, nothing to make up
         assertNull(NotificationRules.evaluateStreak(streakIn(completed = emptyList())))                       // no streak (0)
         assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), settings = Settings(notifyStreak = false))))
         assertNull(NotificationRules.evaluateStreak(streakIn(completed = listOf(past), last = mapOf(NotifType.STREAK to mon)))) // once a day

@@ -52,15 +52,19 @@ object NotificationRules {
         if (i.settings.notifyStreak && i.lastNotified[NotifType.STREAK] != i.today) streak(i) else null
 
     /**
-     * Today is a planned day with no completed workout (and none in progress) and there is a streak to lose (> 0).
-     * Thanks to the grace rule (see [Streak]) tomorrow still saves it, unless yesterday was skipped too: then only today.
+     * Fires when there is a streak to lose (> 0), no workout completed (or in progress) today, and either
+     * - today is a planned day: thanks to the grace rule (see [Streak]) tomorrow still saves it, unless yesterday was
+     *   skipped too: then only today; or
+     * - yesterday was a skipped planned day: today is the last day to make it up (also on an unplanned day).
      */
     fun streak(i: RuleInput): PendingNotification? {
         if (i.hasInProgressToday) return null
         val st = Streak(i.completed, i.plans, i.today, i.zone)
-        if (!st.atRiskToday) return null
+        if (!st.atRiskToday && !st.yesterdayPending) return null
         val n = st.current.takeIf { it > 0 } ?: return null
-        val matching = i.plans.filter { !it.isArchived && i.today.dayOfWeek.value in it.weekdays }
+        // Preselect today's plan; on a make-up day without one, the plan that was skipped yesterday.
+        val day = if (st.atRiskToday) i.today else i.today.minusDays(1)
+        val matching = i.plans.filter { !it.isArchived && day.dayOfWeek.value in it.weekdays }
         val route = if (matching.size == 1) Routes.workoutStart(matching[0].id) else Routes.workoutStart()
         val text = if (st.yesterdayPending) "Train today to keep your $n-day streak." else "Train today or tomorrow to keep your $n-day streak."
         return PendingNotification(NotifType.STREAK, TITLE, text, route)

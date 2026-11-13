@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -130,10 +133,7 @@ fun AppScaffold(pendingRoute: StateFlow<String?>, onRouteConsumed: () -> Unit) {
             delay(1000)
         }
     }
-    val activeBarH = if (inProgress != null) 48.dp else 0.dp
     val barH = BarHeight + navBottom
-    // The FAB rises FabOverhang above the bar; with the active-workout strip (48dp) shown, it overlaps the strip instead.
-    val aboveBar = if (activeBarH > FabOverhang) activeBarH else FabOverhang
 
     CompositionLocalProvider(
         LocalSnackbarHostState provides snackbar, LocalDiaryDate provides diaryDate,
@@ -143,34 +143,23 @@ fun AppScaffold(pendingRoute: StateFlow<String?>, onRouteConsumed: () -> Unit) {
         Scaffold(
             containerColor = LhTheme.colors.background,
             contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
-            snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = if (isTab) barH + aboveBar + 8.dp else bottomInset.value)) },
+            // Snackbars sit above the bar and the raised (+) FAB on tabs.
+            snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = if (isTab) barH + FabOverhang + 8.dp else bottomInset.value)) },
         ) { padding ->
-            Box(Modifier.fillMaxSize()) {
-                LhNavHost(
-                    navController, pendingRoute, onRouteConsumed,
-                    androidx.compose.foundation.layout.PaddingValues(
-                        start = padding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr), top = padding.calculateTopPadding(),
-                        end = padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-                        // Tab content ends above the bar (64 + nav inset) + max(FAB overhang 28dp, active-workout strip 48dp),
-                        // so nothing is ever hidden behind the raised (+) FAB; scroll containers add LocalTabBottomPadding.
-                        bottom = if (isTab) barH + aboveBar else 0.dp,
-                    ),
-                    Modifier.fillMaxSize(),
-                )
-                if (isTab) {
-                    // The strip sits right on the bar's top edge; the bar's transparent overhang (FAB only) overlaps it.
-                    Box(Modifier.align(Alignment.BottomCenter)) {
-                        inProgress?.let { s ->
-                            ActiveWorkoutBar(
-                                s.session.planName, elapsedNow, onResume = { navController.lhNavigate(Routes.WORKOUT_LIVE) },
-                                Modifier.padding(bottom = barH), endInset = FabSlot,
-                            )
-                        }
-                        LhBottomBar(modifier = Modifier.align(Alignment.BottomCenter), currentPattern = pattern, onAdd = { showAdd = true }, addOpen = showAdd) { tab ->
+            TabShell(
+                banner = inProgress?.takeIf { isTab }?.let { s ->
+                    { ActiveWorkoutBar(s.session.planName, elapsedNow, onResume = { navController.lhNavigate(Routes.WORKOUT_LIVE) }) }
+                },
+                bottomBar = if (!isTab) null else {
+                    {
+                        LhBottomBar(currentPattern = pattern, onAdd = { showAdd = true }, addOpen = showAdd) { tab ->
                             navController.navigateToTab(tab.route)
                         }
                     }
-                }
+                },
+                modifier = Modifier.padding(padding),
+            ) { bottom ->
+                LhNavHost(navController, pendingRoute, onRouteConsumed, androidx.compose.foundation.layout.PaddingValues(bottom = bottom), Modifier.fillMaxSize())
             }
         }
         if (showAdd) {
@@ -190,12 +179,39 @@ fun AppScaffold(pendingRoute: StateFlow<String?>, onRouteConsumed: () -> Unit) {
     }
 }
 
-/** Stateless: [endInset] keeps "Resume" clear of the cradled FAB that overlaps the strip's end. "Workout in progress · <plan> · mm:ss  [Resume]" (design 3). */
+/**
+ * Tab-screen chrome. [banner] (the active-workout strip) sits at the top, right below the status bar; it takes over
+ * the status-bar inset, so the screens' own headers ([com.lifehub.app.core.designsystem.components.LhScreenHeader])
+ * start right under it instead of padding again. [bottomBar] overlays the bottom; [content] gets the bottom padding
+ * that keeps it clear of the bar (64dp + nav inset) and the raised (+) FAB ([FabOverhang]).
+ */
 @Composable
-fun ActiveWorkoutBar(planName: String, elapsedSec: Int, onResume: () -> Unit, modifier: Modifier = Modifier, endInset: Dp = 16.dp) {
+fun TabShell(
+    banner: (@Composable () -> Unit)?, bottomBar: (@Composable () -> Unit)?, modifier: Modifier = Modifier,
+    content: @Composable (bottomPadding: Dp) -> Unit,
+) {
+    val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Column(modifier.fillMaxSize()) {
+        if (banner != null) {
+            Box(Modifier.fillMaxWidth().background(LhTheme.colors.background).statusBarsPadding()) { banner() }
+        }
+        Box(
+            Modifier.weight(1f).fillMaxWidth()
+                .then(if (banner != null) Modifier.consumeWindowInsets(androidx.compose.foundation.layout.WindowInsets.statusBars) else Modifier),
+        ) {
+            content(if (bottomBar != null) BarHeight + navBottom + FabOverhang else 0.dp)
+            if (bottomBar != null) Box(Modifier.align(Alignment.BottomCenter)) { bottomBar() }
+        }
+    }
+}
+
+/** Stateless full-width banner shown at the top of tab screens: "Workout · <plan> · mm:ss   Resume >" (taps resume). */
+@Composable
+fun ActiveWorkoutBar(planName: String, elapsedSec: Int, onResume: () -> Unit, modifier: Modifier = Modifier) {
     val c = LhTheme.colors
+    Column(modifier.fillMaxWidth().testTag("active-workout-banner")) {
     Row(
-        modifier.fillMaxWidth().height(48.dp).background(c.accentMuted).clickable(onClick = onResume).padding(start = 16.dp, end = endInset),
+        Modifier.fillMaxWidth().height(44.dp).background(c.accentMuted).clickable(onClick = onResume).padding(start = 16.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(8.dp).background(c.accent, LhThemeDot))
@@ -214,24 +230,27 @@ fun ActiveWorkoutBar(planName: String, elapsedSec: Int, onResume: () -> Unit, mo
         Text(stringResource(R.string.resume), style = LhType.label, color = c.accent)
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = c.accent, modifier = Modifier.size(20.dp))
     }
+    HorizontalDivider(color = c.border, thickness = 1.dp)
+    }
 }
 
 private val LhThemeDot = com.lifehub.app.core.designsystem.LhRadius.fullShape
 
-/** Cradled (+) FAB geometry: 56dp FAB, center on the bar's top edge, 48dp from the end (20dp side margin). */
+/** Cradled (+) FAB geometry: 56dp FAB, center on the bar's top edge at the bar's horizontal center, 6dp gap. */
 val FabSize = 56.dp
 private val FabGap = 6.dp
-private val FabCenterFromEnd = 48.dp
-/** Width reserved after the 4 tabs for the FAB + cradle (FAB centered in it). */
-val FabSlot = FabCenterFromEnd * 2
+/**
+ * Width reserved between Diary and Train for the FAB + cradle. The notch (cradle + 10dp shoulders) spans ~86dp; the
+ * rest keeps the neighbouring labels clear of the shoulders.
+ */
+val FabSlot = 104.dp
 /** How far the FAB rises above the bar's top edge (half its height). */
 val FabOverhang = FabSize / 2
-private val BarShape = CradleBarShape(FabCenterFromEnd, cradleRadius = FabSize / 2 + FabGap, shoulderRadius = 10.dp)
+private val BarShape = CradleBarShape(cradleRadius = FabSize / 2 + FabGap, shoulderRadius = 10.dp)
 
 /**
- * Stateless bar: Home · Diary · Trends · Train, then a (+) FAB at the end (thumb side) cradled in a notch cut
- * into the bar's top edge. Total height = [FabOverhang] + 64dp + nav inset; the top [FabOverhang] is transparent
- * except for the FAB.
+ * Stateless bar: Home · Diary, a centered (+) FAB cradled in a notch cut into the bar's top edge, Trends · Train.
+ * Total height = [FabOverhang] + 64dp + nav inset; the top [FabOverhang] is transparent except for the FAB.
  */
 @Composable
 fun LhBottomBar(
@@ -255,7 +274,8 @@ fun LhBottomBar(
                 }
                 .navigationBarsPadding().height(BarHeight),
         ) {
-            Tab.entries.forEach { tab ->
+            Tab.entries.forEachIndexed { i, tab ->
+                if (i == Tab.entries.size / 2) Spacer(Modifier.width(FabSlot))
                 val selected = tab.route == currentPattern
                 val color = if (selected) c.primary else c.mutedForeground
                 Column(
@@ -267,10 +287,9 @@ fun LhBottomBar(
                     Text(stringResource(tab.labelRes), style = LhType.labelSmall, color = color, maxLines = 1)
                 }
             }
-            Spacer(Modifier.width(FabSlot))
         }
         Box(
-            Modifier.align(Alignment.TopEnd).padding(end = FabCenterFromEnd - FabSize / 2)
+            Modifier.align(Alignment.TopCenter)
                 .size(FabSize)
                 .com_press(src)
                 .shadow(6.dp, CircleShape, ambientColor = c.primary, spotColor = c.primary)
