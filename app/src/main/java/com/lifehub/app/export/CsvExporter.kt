@@ -39,8 +39,11 @@ object CsvExporter {
             s.sessions.map { csv(it.id, it.planId, it.planName, it.date, ts(it.startedAt), ts(it.endedAt), it.durationSec, it.status, it.rpe, it.notes, it.isManual) })
         table("session_sets.csv", "id,sessionId,sessionDate,exerciseId,exerciseName,exerciseOrder,setIndex,targetType,targetValue,actualReps,actualSeconds,weightKg,status",
             s.sets.map { csv(it.id, it.sessionId, sessionDate[it.sessionId], it.exerciseId, it.exerciseName, it.exerciseOrder, it.setIndex, it.targetType, it.targetValue, it.actualReps, it.actualSeconds, it.weightKg, it.status) })
-        table("macros.csv", "date,proteinG,carbsG,fatG,kcal,kcalIsAuto",
-            s.macros.sortedBy { it.date }.map { csv(it.date, it.proteinG, it.carbsG, it.fatG, it.kcal, it.kcalIsAuto) })
+        // Empty proteinG/carbsG/fatG cell = unknown (not zero).
+        table("quick_adds.csv", "id,date,name,kcal,proteinG,carbsG,fatG,kcalIsAuto,createdAt",
+            s.quickAdds.sortedWith(compareBy({ it.date }, { it.createdAt }, { it.id })).map {
+                csv(it.id, it.date, it.name, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, ts(it.createdAt))
+            })
         table("body_entries.csv", "date,weightKg,muscleKg,fatKg,fatPct",
             s.bodyEntries.sortedBy { it.date }.map { csv(it.date, it.weightKg, it.muscleKg, it.fatKg, it.fatKg?.let { f -> f / it.weightKg * 100 }) })
         table("achievements.csv", "id,kind,big,title,detail,value,unit,exerciseId,goalId,sessionId,achievedOn,createdAt,dedupeKey",

@@ -26,7 +26,7 @@ class RepositoriesTest {
     private lateinit var plans: PlanRepositoryImpl
     private lateinit var exercises: ExerciseRepositoryImpl
     private lateinit var sessions: SessionRepositoryImpl
-    private lateinit var macros: MacroRepositoryImpl
+    private lateinit var macros: QuickAddRepositoryImpl
     private lateinit var body: BodyRepositoryImpl
     private lateinit var backup: BackupRepositoryImpl
 
@@ -40,7 +40,7 @@ class RepositoriesTest {
         db = LifeHubDatabase.inMemory(ctx)
         settings = SettingsRepository(ctx).also { it.clear() }
         goals = GoalRepositoryImpl(db); plans = PlanRepositoryImpl(db); exercises = ExerciseRepositoryImpl(db)
-        sessions = SessionRepositoryImpl(db); macros = MacroRepositoryImpl(db); body = BodyRepositoryImpl(db)
+        sessions = SessionRepositoryImpl(db); macros = QuickAddRepositoryImpl(db); body = BodyRepositoryImpl(db)
         backup = BackupRepositoryImpl(db, settings)
         runBlocking { db.exerciseDao().insertAll(MockDataGenerator.exercises) }
     }
@@ -128,12 +128,19 @@ class RepositoriesTest {
         assertEquals(1, sessions.observeCompletedWithSets(today, today).first().size)
     }
 
-    @Test fun macroAutoKcal() = runBlocking {
-        macros.upsert(today, 100, 200, 50, null, now)
-        macros.get(today)!!.let { assertEquals(4 * 100 + 4 * 200 + 9 * 50, it.kcal); assertTrue(it.kcalIsAuto) }
-        macros.upsert(today, 100, 200, 50, 2000, now)
-        macros.get(today)!!.let { assertEquals(2000, it.kcal); assertFalse(it.kcalIsAuto) }
-        assertEquals(1, macros.observeBetween(today, today).first().size)
+    @Test fun quickAddKcalAutoAndUnknownMacros() = runBlocking {
+        val auto = macros.save(null, today, null, null, 100, 200, 50, now)
+        macros.get(auto.id)!!.let { assertEquals(4 * 100 + 4 * 200 + 9 * 50, it.kcal); assertTrue(it.kcalIsAuto) }
+        val kcalOnly = macros.save(null, today, "  Pizza out ", 1100, null, null, null, now.plusSeconds(1))
+        macros.get(kcalOnly.id)!!.let {
+            assertEquals(1100, it.kcal); assertFalse(it.kcalIsAuto); assertNull(it.proteinG); assertNull(it.carbsG); assertNull(it.fatG)
+            assertEquals("Pizza out", it.name); assertEquals("Pizza out", it.displayName)
+        }
+        assertEquals("Quick add", macros.save(null, today, " ", 50, null, null, null, now.plusSeconds(2)).displayName)
+        assertEquals(3, macros.observeBetween(today, today).first().size)
+        // kcal may only be left out when all three macros are known.
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { macros.save(null, today, null, null, 10, null, 5, now) } }
+        Unit
     }
 
     @Test fun bodyUpsertLatest() = runBlocking {
@@ -151,7 +158,7 @@ class RepositoriesTest {
         plans.save(plan(), listOf(planEx(0, PULL_UP)), listOf(GoalPlanLink("g1", "p1", 3)))
         val sid = sessions.startFromPlan("p1", now, today)
         sessions.finish(sid, null, null, now.plusSeconds(10))
-        macros.upsert(today, 1, 1, 1, null, now)
+        macros.save(null, today, null, 120, null, null, null, now)
         body.upsert(BodyEntry(today, 77.0, null, null, now))
         settings.setProteinTarget(180)
         assertFalse(backup.isEmpty())

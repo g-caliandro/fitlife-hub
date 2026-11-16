@@ -31,7 +31,7 @@ fun WorkoutLogRoute(onBack: () -> Unit) {
         ui, onBack,
         onSave = { vm.save { onBack(); SnackbarBus.show("Workout saved", "Undo") { vm.undoManual() } } },
         onDelete = null,
-        onDate = vm::setDate, onStart = vm::setStart, onDuration = vm::setDuration, onRpe = vm::setRpe,
+        onStart = vm::setStart, onDuration = vm::setDuration, onRpe = vm::setRpe,
         onNotes = vm::setNotes, onRow = vm::setRow,
     )
 }

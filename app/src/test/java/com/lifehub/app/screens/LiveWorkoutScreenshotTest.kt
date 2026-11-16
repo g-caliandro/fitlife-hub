@@ -57,18 +57,22 @@ class LiveWorkoutScreenshotTest {
     @Test fun livePr() = shot("live-workout-pr", ui(2, pr = PrBanner(1, "New PR · 12 reps Pull-up")))
     @Test fun livePrDark() = shot("live-workout-pr-dark", ui(2, pr = PrBanner(1, "New PR · 12 reps Pull-up")), dark = true)
     @Test fun liveMax() = shot("live-workout-max", ui(6))
+    @Test fun liveWeighted() = shot("live-workout-weighted", ui(5))
+    @Test fun liveWeightedDark() = shot("live-workout-weighted-dark", ui(5), dark = true)
+    @Test fun liveSecondsReady() = shot("live-workout-seconds-ready", ui(7))
+    @Test fun liveSecondsReadyDark() = shot("live-workout-seconds-ready-dark", ui(7), dark = true)
 
-    /** Seconds ruler on a user-defined hold with an off-grid target (32 s on a 5 s ruler) and a weight. */
+    /** Seconds picker on a user-defined hold with an off-grid target (32 s on a 5 s wheel) and a weight. */
     private fun customHold(): LiveUi {
         val ss = sets.map { if (it.exerciseOrder == 3) it.copy(exerciseName = "Wall sit (weighted)", exerciseId = "user-wall-sit", targetValue = 32, weightKg = 12.5) else it }
         return ui(7).copy(sets = ss, input = WorkoutOps.prefill(ss[7]))
     }
-    @Test fun liveSecondsRuler() = shot("live-workout-seconds-ruler", customHold())
-    @Test fun liveSecondsRulerDark() = shot("live-workout-seconds-ruler-dark", customHold(), dark = true)
-    @Test fun secondsRulerShowsTheExactTarget() {
+    @Test fun liveSecondsPicker() = shot("live-workout-seconds-picker", customHold())
+    @Test fun liveSecondsPickerDark() = shot("live-workout-seconds-picker-dark", customHold(), dark = true)
+    @Test fun secondsPickerShowsTheExactTarget() {
         rule.setContent { LhTheme { LiveWorkoutScreen(customHold(), now, LiveActions()) } }
-        rule.onNodeWithTag("ruler-value-Seconds", useUnmergedTree = true).assertTextEquals("32 s")
-        rule.onNodeWithTag("ruler-value-Weight", useUnmergedTree = true).assertTextEquals("12.5 kg")
+        rule.onNodeWithTag("picker-value-Seconds", useUnmergedTree = true).assertTextEquals("32 s")
+        rule.onNodeWithTag("picker-value-Weight", useUnmergedTree = true).assertTextEquals("12.5 kg")
     }
 
     @Test fun finishSummary() = sheet("finish-summary", false)

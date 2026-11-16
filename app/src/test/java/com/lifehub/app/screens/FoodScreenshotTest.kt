@@ -66,17 +66,39 @@ class FoodScreenshotTest {
     @Test fun scanDenied() = both("scan-denied") { ScanScreen(ScanUi.PermanentlyDenied, {}, {}, {}, {}, {}) }
     @Test fun scanNotFound() = both("scan-notfound") { ScanScreen(ScanUi.NotFound("3017620422003"), {}, {}, {}, {}, {}) }
 
+    @Config(qualifiers = "w360dp-h1900dp-xxhdpi")   // tall: the whole food list of the day detail
     @Test fun calendarDay() {
         val d = today.minusDays(1)
         fun e(id: String, f: Food, g: Double, at: Long): FoodEntry { val m = f.macrosFor(g)
             return FoodEntry(id, d, f.id, f.name, f.brand, g, m.kcal, m.proteinG, m.carbsG, m.fatG, now.plusSeconds(at)) }
         val entries = listOf(e("1", oats, 70.0, 0), e("2", results[1], 200.0, 1), e("3", chicken, 180.0, 2), e("4", results[3], 30.0, 3))
-        val quick = MacroDay(d, 12, 25, 4, 184, true, now)
-        val nut = mergeNutrition(listOf(quick), entries).single()
+        // Quick adds between the foods: a full one without name, a kcal-only named one (macros n/a), a partial one.
+        val quick = listOf(
+            QuickAddEntry("q1", d, null, 184, 12, 25, 4, true, now.plusSeconds(1).plusMillis(500)),
+            QuickAddEntry("q2", d, "Pizza out", 1050, null, null, null, false, now.plusSeconds(5)),
+            QuickAddEntry("q3", d, "Cappuccino", 120, 6, null, null, false, now.plusSeconds(6)),
+        )
+        val nut = mergeNutrition(quick, entries).single()
         val state = CalendarState(
             today, d, macroDays = setOf(d, today.minusDays(3)), weightDays = setOf(d),
-            day = DaySummary(d, emptyList(), quick, BodyEntry(d, 76.9, 37.3, 12.5, now), nut),
+            day = DaySummary(d, emptyList(), BodyEntry(d, 76.9, 37.3, 12.5, now), nut),
+            kcalTarget = 2600, carbsTarget = 250, fatTarget = 80,
         )
         both("calendar-day") { CalendarScreen(state, {}, {}) }
+    }
+
+    /** A day logged only with kcal-only quick adds: every macro is unknown ("—"). */
+    @Config(qualifiers = "w360dp-h1500dp-xxhdpi")
+    @Test fun calendarDayKcalOnly() {
+        val d = today.minusDays(1)
+        val quick = listOf(
+            QuickAddEntry("q1", d, "Lunch out", 950, null, null, null, false, now),
+            QuickAddEntry("q2", d, null, 600, null, null, null, false, now.plusSeconds(1)),
+        )
+        val state = CalendarState(
+            today, d, day = DaySummary(d, emptyList(), null, mergeNutrition(quick, emptyList()).single()),
+            kcalTarget = 2600, carbsTarget = 250, fatTarget = 80,
+        )
+        both("calendar-day-kcal-only") { CalendarScreen(state, {}, {}) }
     }
 }

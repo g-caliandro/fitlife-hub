@@ -124,7 +124,7 @@ fun CalendarRoute(onNavigate: (String) -> Unit) {
     val c = LocalContext.current.container
     val vm: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(c))
     val state by vm.state.collectAsState()
-    CalendarScreen(state, vm::select, onNavigate, onDeleteFood = vm::deleteFood, onCopyYesterday = vm::copyYesterday, onClearDay = vm::clearDay)
+    CalendarScreen(state, vm::select, onNavigate, onDeleteFood = vm::deleteFood, onCopyYesterday = vm::copyYesterday, onClearDay = vm::clearDay, onDeleteQuickAdd = vm::deleteQuickAdd)
 }
 
 @Composable
@@ -137,6 +137,7 @@ fun CalendarScreen(
     onDeleteFood: (com.lifehub.app.data.model.FoodEntry) -> Unit = {},
     onCopyYesterday: (LocalDate) -> Unit = {},
     onClearDay: (LocalDate) -> Unit = {},
+    onDeleteQuickAdd: (com.lifehub.app.data.model.QuickAddEntry) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val c = LhTheme.colors
@@ -191,6 +192,7 @@ fun CalendarScreen(
                     day, state.today, state.proteinTarget, onNavigate, initiallyExpanded, Modifier, onDeleteFood,
                     state.kcalTarget, state.carbsTarget, state.fatTarget, onCopyYesterday, onClearDay,
                     goalsDue = state.goalsDue[day.date].orEmpty(), goalsReached = state.goalsReached[day.date].orEmpty(),
+                    onDeleteQuickAdd = onDeleteQuickAdd,
                 )
             }
             Spacer(Modifier.height(com.lifehub.app.core.designsystem.components.LocalTabBottomPadding.current))
@@ -365,6 +367,7 @@ fun DayDetail(
     onCopyYesterday: (LocalDate) -> Unit = {}, onClearDay: (LocalDate) -> Unit = {},
     goalsDue: List<com.lifehub.app.data.model.Goal> = emptyList(),
     goalsReached: List<com.lifehub.app.data.model.Goal> = emptyList(),
+    onDeleteQuickAdd: (com.lifehub.app.data.model.QuickAddEntry) -> Unit = {},
 ) {
     val c = LhTheme.colors
     var foodMenu by remember { mutableStateOf(false) }
@@ -392,24 +395,27 @@ fun DayDetail(
             }
         }
 
-        // Summary: totals = food entries + quick add.
-        val m = day.nutrition?.asMacroDay() ?: day.macro
+        // Summary: totals = food entries + quick adds (known values only; "—" when a macro is unknown for every item).
+        val m = day.nutrition?.asMacroDay()
         LhCard(Modifier.fillMaxWidth().testTag("day-summary")) {
             val kcal = m?.kcal ?: 0
             LhKcalChip(if (kcalTarget != null && kcalTarget > 0) "${fmtInt(kcal)} / ${fmtInt(kcalTarget)} kcal" else "${fmtInt(kcal)} kcal")
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                fun ring(v: Int, t: Int?, unit: String) = if (t != null && t > 0) "$v/$t $unit" else "$v $unit"
+                fun ring(v: Int, known: Boolean, t: Int?, unit: String): String {
+                    val shown = if (known) "$v" else "\u2014"
+                    return if (t != null && t > 0) "$shown/$t $unit" else "$shown $unit"
+                }
                 fun prog(v: Int, t: Int?) = if (t != null && t > 0) v / t.toFloat() else 0f
-                LhMacroRingStat(ring(m?.carbsG ?: 0, carbsTarget, "g"), "carbs", prog(m?.carbsG ?: 0, carbsTarget), c.carbs)
-                LhMacroRingStat(ring(m?.fatG ?: 0, fatTarget, "g"), "fat", prog(m?.fatG ?: 0, fatTarget), c.fat)
-                LhMacroRingStat(ring(m?.proteinG ?: 0, proteinTarget, "g"), "protein", prog(m?.proteinG ?: 0, proteinTarget), c.protein)
+                LhMacroRingStat(ring(m?.carbsG ?: 0, m?.carbsKnown ?: true, carbsTarget, "g"), "carbs", prog(m?.carbsG ?: 0, carbsTarget), c.carbs)
+                LhMacroRingStat(ring(m?.fatG ?: 0, m?.fatKnown ?: true, fatTarget, "g"), "fat", prog(m?.fatG ?: 0, fatTarget), c.fat)
+                LhMacroRingStat(ring(m?.proteinG ?: 0, m?.proteinKnown ?: true, proteinTarget, "g"), "protein", prog(m?.proteinG ?: 0, proteinTarget), c.protein)
             }
         }
 
         val entries = day.nutrition?.entries.orEmpty()
-        val q = day.macro
-        val hasFood = entries.isNotEmpty() || q != null
+        val quick = day.quickAdds
+        val hasFood = entries.isNotEmpty() || quick.isNotEmpty()
         LhSectionHeader("Food", icon = Icons.Outlined.Restaurant, action = {
             androidx.compose.foundation.layout.Box {
                 com.lifehub.app.core.designsystem.components.LhIconAction(Icons.Outlined.MoreVert, "Food options", { foodMenu = true }, Modifier.testTag("food-menu"))
@@ -432,23 +438,25 @@ fun DayDetail(
             onConfirm = { confirmClear = false; onClearDay(day.date) }, onDismiss = { confirmClear = false },
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("food-entries")) {
-            entries.forEach { e ->
-                androidx.compose.runtime.key(e.id) {
-                    SwipeToDeleteEntry(onDelete = { onDeleteFood(e) }) {
-                        FoodEntryRow(e, { onNavigate(Routes.foodDetail(e.foodId ?: "none", e.date, e.id)) }, Modifier.testTag("food-entry-${e.id}"))
+            // Foods and quick adds in one list, in the order they were logged.
+            val rows = entries.map { it.createdAt to (it as Any) } + quick.map { it.createdAt to (it as Any) }
+            rows.sortedBy { it.first }.forEach { (_, item) ->
+                when (item) {
+                    is com.lifehub.app.data.model.FoodEntry -> androidx.compose.runtime.key(item.id) {
+                        SwipeToDeleteEntry(onDelete = { onDeleteFood(item) }) {
+                            FoodEntryRow(item, { onNavigate(Routes.foodDetail(item.foodId ?: "none", item.date, item.id)) }, Modifier.testTag("food-entry-${item.id}"))
+                        }
+                    }
+                    is com.lifehub.app.data.model.QuickAddEntry -> androidx.compose.runtime.key(item.id) {
+                        SwipeToDeleteEntry(onDelete = { onDeleteQuickAdd(item) }) {
+                            com.lifehub.app.feature.food.QuickAddRow(item, { onNavigate(Routes.macroEdit(day.date, item.id)) }, Modifier.testTag("quick-add-${item.id}"))
+                        }
                     }
                 }
             }
-            if (q != null) {
-                LhListItem(
-                    "Quick add", subtitle = "P ${q.proteinG} · C ${q.carbsG} · F ${q.fatG}", trailingText = "${fmtInt(q.kcal)} kcal",
-                    icon = Icons.Outlined.Bolt, iconTint = c.protein, onClick = { onNavigate(Routes.macroEdit(day.date)) },
-                    modifier = Modifier.testTag("macros-row"),
-                )
-            }
-            if (entries.isEmpty() && q == null) Text("Nothing logged", style = LhType.captionMuted, modifier = Modifier.padding(start = 4.dp))
+            if (!hasFood) Text("Nothing logged", style = LhType.captionMuted, modifier = Modifier.padding(start = 4.dp))
             if (!future) LhAddRow({ onNavigate(Routes.foodAdd(day.date)) }, Modifier.testTag("add-food"), contentDescription = "Add food")
-            if (q == null) LhAddRow({ onNavigate(Routes.macroEdit(day.date)) }, Modifier.testTag("macros-row"), label = "Quick add macros")
+            LhAddRow({ onNavigate(Routes.macroEdit(day.date)) }, Modifier.testTag("macros-row"), label = "Quick add")
         }
 
         LhSectionHeader(stringResource(R.string.cal_workouts), icon = Icons.Outlined.FitnessCenter)

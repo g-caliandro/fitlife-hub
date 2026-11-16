@@ -81,7 +81,15 @@ class WorkoutOpsTest {
         assertTrue(WorkoutOps.carryWeight(l, l[0].copy(status = SetStatus.DONE), 10.0).isEmpty())
     }
 
-    @Test fun rulerFallbackValue() {
+    @Test fun pickerValuesKeepExactOffGridNumbers() {
+        val v = WorkoutOps.pickerValues(5.0, 60.0, listOf(32.0, 30.0, null))
+        assertEquals(listOf(0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 32.0, 35.0), v.take(9))
+        assertEquals(60.0, v.last(), 0.0)
+        val kg = WorkoutOps.pickerValues(0.5, 20.0, listOf(12.3))
+        assertTrue(12.3 in kg && 12.5 in kg && 0.0 in kg)
+    }
+
+    @Test fun pickerFallbackValue() {
         assertEquals("30", WorkoutOps.fallbackValue(set(0, 0, TargetType.SECONDS, null), emptyList(), null))
         assertEquals("1", WorkoutOps.fallbackValue(set(0, 0, TargetType.MAX, null), emptyList(), null))
         val earlier = set(0, 0, TargetType.MAX, null, st = SetStatus.DONE).copy(actualReps = 14)

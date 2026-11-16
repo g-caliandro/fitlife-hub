@@ -55,8 +55,8 @@ class CalendarV2ScreenshotTest {
         missedTraining = setOf(today.minusDays(7), today.minusDays(10), today.minusDays(3), today.minusDays(13)), // + Oct 30: faded, unstyled
         trainedDays = setOf(today.minusDays(11), today.minusDays(9), today.minusDays(8), today.minusDays(5), today.minusDays(4), today.minusDays(2),
             selected, today.minusDays(16), today.minusDays(18)), // Oct 27/25: faded, no markers
-        day = DaySummary(selected, listOf(card, card2), MacroDay(selected, 152, 240, 70, 2198, false, now), BodyEntry(selected, 76.9, 37.3, 12.5, now),
-            com.lifehub.app.domain.mergeNutrition(listOf(MacroDay(selected, 12, 25, 4, 184, true, now)), listOf(
+        day = DaySummary(selected, listOf(card, card2), BodyEntry(selected, 76.9, 37.3, 12.5, now),
+            com.lifehub.app.domain.mergeNutrition(listOf(QuickAddEntry("q1", selected, null, 184, 12, 25, 4, true, now.plusSeconds(5))), listOf(
                 FoodEntry("1", selected, null, "Greek yogurt", "Fage", 200.0, 118.0, 20.0, 8.0, 6.0, now),
                 FoodEntry("2", selected, null, "Chicken breast", null, 180.0, 297.0, 56.0, 0.0, 6.5, now.plusSeconds(1)),
             )).single()),

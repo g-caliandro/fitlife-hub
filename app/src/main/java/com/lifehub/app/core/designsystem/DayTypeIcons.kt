@@ -32,12 +32,19 @@ object DayTypeIcons {
         arcTo(r, r, 0f, true, true, cx - r, cy)
     }
 
-    /** Bar overhead with an arrow pulling up toward it. */
+    /**
+     * Pull-up bar: horizontal bar on two ceiling mounts, with a tiny figure at the top of a pull-up
+     * (chin over the bar, arms bent down to the chest, torso and legs hanging).
+     */
     val Pull: ImageVector by lazy {
         build("DayPull") {
-            moveTo(4f, 4f); lineTo(20f, 4f)
-            moveTo(12f, 20f); lineTo(12f, 9f)
-            moveTo(7.5f, 13f); lineTo(12f, 8.5f); lineTo(16.5f, 13f)
+            moveTo(2.5f, 10f); lineTo(21.5f, 10f)
+            moveTo(4.5f, 10f); lineTo(4.5f, 3f)
+            moveTo(19.5f, 10f); lineTo(19.5f, 3f)
+            circle(12f, 6f, 1.8f)
+            moveTo(8f, 10f); lineTo(8.5f, 14f); lineTo(12f, 12.5f); lineTo(15.5f, 14f); lineTo(16f, 10f)
+            moveTo(12f, 12.5f); lineTo(12f, 17.5f)
+            moveTo(10.5f, 21f); lineTo(12f, 17.5f); lineTo(13.5f, 21f)
         }
     }
 

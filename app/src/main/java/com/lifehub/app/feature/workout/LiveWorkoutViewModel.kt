@@ -101,7 +101,7 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
             .map { ids -> ids.associateWith { c.sessions.previousSets(it) } }
     val ui: StateFlow<LiveUi> = combine(base, dayType, history.onStart { emit(emptyMap()) }) { u, t, h ->
         val f = u.focused
-        // MAX sets have no target: start the ruler from last time's value instead of an empty field.
+        // MAX sets have no target: start the picker from last time's value instead of an empty field.
         val input = if (f != null && f.status == SetStatus.PENDING && u.input.value.isBlank()) {
             val blockIdx = u.sets.filter { it.exerciseOrder == f.exerciseOrder }.sortedBy { it.setIndex }.indexOfFirst { it.id == f.id }
             u.input.copy(value = WorkoutOps.fallbackValue(f, u.sets, h[f.exerciseId]?.getOrNull(blockIdx)))

@@ -203,6 +203,7 @@ object AchievementEngine {
         var monday = Periods.weekStart(first)
         while (monday.plusDays(6).isBefore(h.today)) {
             val days = (0..6).map { byDate[monday.plusDays(it.toLong())] }
+            // proteinG is the sum of KNOWN values (n/a = not counted): a week only counts when the known protein reaches the target daily.
             if (days.all { it != null && it.proteinG >= target }) {
                 out += AchievementCandidate(AchievementKind.PROTEIN_WEEK, "Protein target hit all week", "7/7 days at or above $target g",
                     target.toDouble(), "g", achievedOn = monday.plusDays(6), dedupeKey = "PROTEIN_WEEK:${weekKey(monday)}")

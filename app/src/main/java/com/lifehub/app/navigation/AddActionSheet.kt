@@ -28,7 +28,7 @@ fun AddActionSheet(
     LhBottomSheet(onDismiss, title = "Add") {
         Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             LhListItem("Add food", icon = Icons.Outlined.Restaurant, iconTint = c.primary, subtitle = "Search, scan or pick a recent food", onClick = onAddFood, modifier = Modifier.padding(0.dp))
-            LhListItem("Quick macros", icon = Icons.Outlined.Bolt, iconTint = c.protein, subtitle = "Add protein/carbs/fat totals", onClick = onQuickMacros)
+            LhListItem("Quick macros", icon = Icons.Outlined.Bolt, iconTint = c.protein, subtitle = "Calories, macros optional", onClick = onQuickMacros)
             LhListItem(
                 if (activeWorkout != null) "Resume workout" else "Start workout", icon = Icons.Outlined.FitnessCenter, iconTint = c.push,
                 subtitle = activeWorkout ?: "Pick a plan", onClick = onStartWorkout,

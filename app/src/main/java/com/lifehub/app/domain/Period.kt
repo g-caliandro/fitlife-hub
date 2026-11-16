@@ -17,8 +17,10 @@ object Periods {
     fun weekStart(d: LocalDate): LocalDate = d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
     /** offset 0 = current period; k = k periods back. */
-    fun period(today: LocalDate, p: HomePeriod, offset: Int): DateRange {
-        val len = p.days
+    fun period(today: LocalDate, p: HomePeriod, offset: Int): DateRange = period(today, p.days, offset)
+
+    /** Period of [len] days (a multiple of 7) ending on the Sunday of today's week; offset k = k periods back. */
+    fun period(today: LocalDate, len: Int, offset: Int): DateRange {
         val start = weekStart(today).minusDays((len - 7).toLong()).minusDays(offset.toLong() * len)
         return DateRange(start, start.plusDays(len - 1L))
     }

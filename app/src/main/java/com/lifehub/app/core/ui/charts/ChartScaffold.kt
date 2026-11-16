@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -20,7 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifehub.app.core.designsystem.LhTheme
 import com.lifehub.app.domain.DateRange
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToLong
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
@@ -35,13 +41,6 @@ fun niceMax(v: Double): Double {
     val base = 10.0.pow(exp)
     for (m in listOf(1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)) if (m * base >= v - 1e-9) return m * base
     return 10 * base
-}
-
-/** Rounds [min]-0.5 down and [max]+0.5 up to multiples of 0.5. */
-fun paddedRange(min: Double, max: Double): Pair<Double, Double> {
-    val lo = floor((min - 0.5) * 2) / 2
-    val hi = ceil((max + 0.5) * 2) / 2
-    return lo to hi
 }
 
 internal val ChartHeight: Dp = 180.dp
@@ -77,19 +76,102 @@ internal enum class Align { Start, Center, End }
 internal fun labelStyle(color: Color, bold: Boolean = false, size: Int = 10) =
     TextStyle(fontFamily = com.lifehub.app.core.designsystem.Poppins, fontSize = size.sp, color = color, fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal)
 
-/** X labels per spec: 1W "M T W T F S S", 2W day-of-month on every other day. Today highlighted. */
+/** True for Saturday and Sunday. */
+internal fun LocalDate.isWeekend(): Boolean = dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY
+
+/**
+ * Which day indexes get an x label. Up to 7 days: all (weekday letters). Up to 14: every other day from the first
+ * (periods start on Monday, so Mon/Wed/Fri/Sun). Longer: Mondays and Thursdays. Today is added when it does not
+ * crowd a neighbouring label.
+ */
+internal fun xLabelIndexes(days: List<LocalDate>, today: LocalDate?): Set<Int> {
+    val n = days.size
+    val base = days.indices.filter { i ->
+        when {
+            n <= 7 -> true
+            n <= 14 -> i % 2 == 0
+            else -> days[i].dayOfWeek == DayOfWeek.MONDAY || days[i].dayOfWeek == DayOfWeek.THURSDAY
+        }
+    }.toMutableSet()
+    val t = today?.let { days.indexOf(it) } ?: -1
+    if (t >= 0 && t !in base && (t - 1) !in base && (t + 1) !in base) base += t
+    return base
+}
+
+/**
+ * X labels: 1W "M T W T F S S", 2W day-of-month every other day, 4W day-of-month on Mondays and Thursdays
+ * (see [xLabelIndexes]). Today is bold; with [weekendColor], Saturday/Sunday labels use that tone.
+ */
 internal fun DrawScope.drawXLabels(
     m: TextMeasurer, range: DateRange, plot: PlotArea, muted: Color, strong: Color, today: LocalDate?,
+    weekendColor: Color? = null,
 ) {
     val days = range.days
     val slot = plot.width / days.size
     val letters = "MTWTFSS"
+    val shown = xLabelIndexes(days, today)
     days.forEachIndexed { i, d ->
-        val show = days.size <= 7 || i % 2 == 0
-        if (!show) return@forEachIndexed
+        if (i !in shown) return@forEachIndexed
         val isToday = d == today
         val t = if (days.size <= 7) letters[d.dayOfWeek.value - 1].toString() else d.dayOfMonth.toString()
-        drawLabel(m, t, labelStyle(if (isToday) strong else muted, isToday, 11), plot.left + slot * (i + 0.5f), plot.bottom + 10.dp.toPx())
+        val col = when {
+            isToday -> strong
+            weekendColor != null && d.isWeekend() -> weekendColor
+            else -> muted
+        }
+        drawLabel(m, t, labelStyle(col, isToday, 11), plot.left + slot * (i + 0.5f), plot.bottom + 10.dp.toPx())
+    }
+}
+
+/**
+ * Subtle shaded columns behind each weekend (Sat+Sun merged into one band), running from the top of the plot down
+ * through the x-label row so the weekend labels sit inside them.
+ */
+internal fun DrawScope.drawWeekendBands(range: DateRange, plot: PlotArea, color: Color) {
+    val days = range.days
+    val slot = plot.width / days.size
+    val inset = 1.dp.toPx()
+    val r = CornerRadius(4.dp.toPx())
+    var i = 0
+    while (i < days.size) {
+        if (!days[i].isWeekend()) { i++; continue }
+        var j = i
+        while (j + 1 < days.size && days[j + 1].isWeekend()) j++
+        val left = plot.left + slot * i + inset
+        val right = plot.left + slot * (j + 1) - inset
+        drawRoundRect(color, Offset(left, plot.top - 4.dp.toPx()), Size(right - left, size.height - plot.top + 4.dp.toPx()), r)
+        i = j + 1
+    }
+}
+
+/** Shared value axis: [lo]..[hi] in steps of [step] (lo and hi are multiples of step). */
+data class AxisTicks(val lo: Double, val hi: Double, val step: Double) {
+    val values: List<Double> get() = (0..((hi - lo) / step + 1e-6).toInt()).map { lo + it * step }
+
+    /** Fraction digits needed to print every tick exactly (0..2). */
+    val decimals: Int get() = (0..2).firstOrNull { d -> val v = step * 10.0.pow(d); abs(v - v.roundToLong()) < 1e-6 } ?: 2
+
+    fun format(v: Double): String = String.format(Locale.ENGLISH, "%.${decimals}f", v)
+}
+
+/**
+ * Nice axis covering [min]..[max] with some padding (3 % of the span, at least 0.25, plus the snap to the step) and at most [maxIntervals]
+ * intervals; steps are 1, 2, 2.5 or 5 x 10^n and the ends snap to multiples of the step.
+ */
+fun niceTicks(min: Double, max: Double, maxIntervals: Int = 5): AxisTicks {
+    // Small inner padding keeps points off the frame; snapping the ends to the step adds the rest.
+    val pad = maxOf((max - min) * 0.03, 0.25)
+    val lo = min - pad
+    val hi = max + pad
+    var exp = floor(log10((hi - lo) / maxIntervals)).toInt()
+    while (true) {
+        for (m in listOf(1.0, 2.0, 2.5, 5.0)) {
+            val step = m * 10.0.pow(exp)
+            val a = floor(lo / step + 1e-9)
+            val b = ceil(hi / step - 1e-9)
+            if (b - a <= maxIntervals) return AxisTicks(a * step, b * step, step)
+        }
+        exp++
     }
 }
 

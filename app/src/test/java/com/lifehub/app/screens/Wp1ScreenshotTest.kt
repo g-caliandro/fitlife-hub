@@ -13,6 +13,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.assertTextEquals
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.lifehub.app.domain.PlanProgress
 import com.lifehub.app.domain.timeProgress
@@ -96,8 +100,31 @@ class Wp1ScreenshotTest {
     }
     @Test fun plansEmpty() = shot("wp1-plans-empty") { PlansScreen(PlansUiState(), {}, {}, {}, {}) }
 
+    private fun planSession(d: LocalDate) = WorkoutSession(
+        "s$d", "p1", "Pull & Bar", d, d.atTime(18, 0).toInstant(java.time.ZoneOffset.UTC), null, 2700, SessionStatus.COMPLETED,
+        null, null, false, 0, null,
+    )
+    private val planSessions = listOf(3, 5, 10, 12).map { planSession(today.withDayOfMonth(it)) } + planSession(today.minusMonths(1).withDayOfMonth(29))
+    private fun planDetailState() = PlanDetailState(
+        planWithEx.copy(plan = plan.copy(dayType = DayType.PULL)), listOf(PlanGoalChip("g1", "Muscle Up", 26, 36)), planSessions, 4, today,
+    )
+
     @Test fun planDetail() = shot("wp1-plan-detail") {
-        PlanDetailScreen(PlanDetailState(planWithEx, listOf(PlanGoalChip("g1", "Muscle Up", 26, 36)), emptyList(), 4), {}, {}, {}, {}, {}, {}, {}, {})
+        PlanDetailScreen(planDetailState(), {}, {}, {}, {}, {}, {}, {}, {})
+    }
+
+    @Test fun planDetailCalendarOpensSessionAndNavigatesMonths() {
+        var opened: String? = null
+        rule.setContent { LhTheme { PlanDetailScreen(planDetailState(), {}, {}, {}, {}, {}, {}, {}, { opened = it }) } }
+        rule.onNodeWithTag("plan-calendar").performScrollTo()
+        rule.onNodeWithTag("plan-session-2026-11-10").performClick()
+        assertEquals("s2026-11-10", opened)
+        rule.onNodeWithContentDescription("Previous month").performClick()
+        rule.onNodeWithTag("plan-calendar-month").assertTextEquals("October 2026")
+        rule.onNodeWithTag("plan-session-2026-10-29").assertExists()
+        rule.onNodeWithContentDescription("Next month").performClick()
+        rule.onNodeWithContentDescription("Next month").performClick()
+        rule.onNodeWithTag("plan-calendar-month").assertTextEquals("December 2026")
     }
 
     @Test fun planEdit() = shot("wp1-plan-edit") {

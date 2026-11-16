@@ -24,7 +24,7 @@ fun SessionRoute(onBack: () -> Unit) {
     }
     SessionEditScreen(
         ui, onBack, onSave = { vm.save { onBack(); SnackbarBus.show("Session saved", "Undo") { vm.undoEdit() } } }, onDelete = { vm.delete(onBack) },
-        onDate = vm::setDate, onStart = vm::setStart, onDuration = vm::setDuration, onRpe = vm::setRpe,
+        onStart = vm::setStart, onDuration = vm::setDuration, onRpe = vm::setRpe,
         onNotes = vm::setNotes, onRow = vm::setRow,
     )
 }

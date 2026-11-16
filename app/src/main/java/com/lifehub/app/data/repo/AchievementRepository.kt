@@ -63,7 +63,7 @@ class AchievementRepositoryImpl(private val db: LifeHubDatabase, private val set
 
     private suspend fun history(today: LocalDate, protein: Int, zone: ZoneId) = AchievementHistory(
         today = today, sessions = sessionDao.getAll(), sets = sessionDao.getAllSets(), plans = db.planDao().getAll(),
-        macros = com.lifehub.app.domain.mergeNutrition(db.macroDao().getAll(), db.foodEntryDao().getAll()).map { it.asMacroDay() }, goals = db.goalDao().getAll(), proteinTargetG = protein, zone = zone,
+        macros = com.lifehub.app.domain.mergeNutrition(db.quickAddDao().getAll(), db.foodEntryDao().getAll()).map { it.asMacroDay() }, goals = db.goalDao().getAll(), proteinTargetG = protein, zone = zone,
     )
 
     override suspend fun onSessionFinished(sessionId: String, now: Instant): List<Achievement> = db.withTransaction {

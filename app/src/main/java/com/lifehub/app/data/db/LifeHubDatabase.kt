@@ -15,7 +15,7 @@ import com.lifehub.app.data.db.dao.FoodEntryDao
 import com.lifehub.app.data.model.Food
 import com.lifehub.app.data.model.FoodEntry
 import com.lifehub.app.data.db.dao.GoalDao
-import com.lifehub.app.data.db.dao.MacroDao
+import com.lifehub.app.data.db.dao.QuickAddDao
 import com.lifehub.app.data.db.dao.PlanDao
 import com.lifehub.app.data.db.dao.SessionDao
 import com.lifehub.app.data.model.Achievement
@@ -24,7 +24,7 @@ import com.lifehub.app.data.model.Exercise
 import com.lifehub.app.data.model.ExerciseCategory
 import com.lifehub.app.data.model.Goal
 import com.lifehub.app.data.model.GoalPlanLink
-import com.lifehub.app.data.model.MacroDay
+import com.lifehub.app.data.model.QuickAddEntry
 import com.lifehub.app.data.model.Plan
 import com.lifehub.app.data.model.PlanExercise
 import com.lifehub.app.data.model.SessionSet
@@ -32,8 +32,8 @@ import com.lifehub.app.data.model.WorkoutSession
 
 @Database(
     entities = [Goal::class, Plan::class, GoalPlanLink::class, Exercise::class, PlanExercise::class,
-        WorkoutSession::class, SessionSet::class, MacroDay::class, BodyEntry::class, Achievement::class, Food::class, FoodEntry::class],
-    version = 6, exportSchema = true,
+        WorkoutSession::class, SessionSet::class, QuickAddEntry::class, BodyEntry::class, Achievement::class, Food::class, FoodEntry::class],
+    version = 7, exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class LifeHubDatabase : RoomDatabase() {
@@ -41,7 +41,7 @@ abstract class LifeHubDatabase : RoomDatabase() {
     abstract fun planDao(): PlanDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun sessionDao(): SessionDao
-    abstract fun macroDao(): MacroDao
+    abstract fun quickAddDao(): QuickAddDao
     abstract fun bodyDao(): BodyDao
     abstract fun achievementDao(): AchievementDao
     abstract fun foodDao(): FoodDao
@@ -50,10 +50,26 @@ abstract class LifeHubDatabase : RoomDatabase() {
     companion object {
         fun build(context: Context): LifeHubDatabase =
             Room.databaseBuilder(context, LifeHubDatabase::class.java, "lifehub.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
 
         fun inMemory(context: Context): LifeHubDatabase =
             Room.inMemoryDatabaseBuilder(context, LifeHubDatabase::class.java).allowMainThreadQueries().build()
+
+        /**
+         * v7: quick add becomes a list. The per-day `macro_days` row (P/C/F/kcal, all required) turns into one
+         * `quick_add_entries` row (no name, same values, createdAt = updatedAt); macros are nullable from now on (null = unknown).
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `quick_add_entries` (`id` TEXT NOT NULL, `date` INTEGER NOT NULL, `name` TEXT, `kcal` INTEGER NOT NULL, `proteinG` INTEGER, `carbsG` INTEGER, `fatG` INTEGER, `kcalIsAuto` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_quick_add_entries_date` ON `quick_add_entries` (`date`)")
+                db.execSQL(
+                    """INSERT INTO quick_add_entries (id, date, name, kcal, proteinG, carbsG, fatG, kcalIsAuto, createdAt)
+                       SELECT 'macro-' || date, date, NULL, kcal, proteinG, carbsG, fatG, kcalIsAuto, updatedAt FROM macro_days""",
+                )
+                db.execSQL("DROP TABLE macro_days")
+            }
+        }
 
         /**
          * v6: no built-in exercise library and only 4 categories (schema unchanged, data only).

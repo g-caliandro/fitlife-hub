@@ -24,8 +24,16 @@ class BodyFormTest {
         assertNull(liveFatPct(76.9, null))
     }
     @Test fun macros() {
+        // Only calories are required; blank macros are unknown (null), not 0.
         assertFalse(macrosValid(parseMacros("", "0", "", "")))
-        assertTrue(macrosValid(parseMacros("1", "", "", "")))
+        assertFalse(macrosValid(parseMacros("30", "", "", "")))          // no kcal and macros incomplete
+        assertTrue(macrosValid(parseMacros("", "", "", "450")))          // kcal only
+        assertTrue(macrosValid(parseMacros("1", "1", "1", "")))          // all three -> auto kcal
+        assertFalse(macrosValid(parseMacros("0", "0", "0", "")))
+        assertEquals(ParsedMacros(null, null, 5, 450), parseMacros("", " ", "5", "450"))
         assertEquals(4 * 150 + 4 * 240 + 9 * 70, macroAutoKcal(parseMacros("150", "240", "70", "")))
+        assertNull(macroAutoKcal(parseMacros("150", "", "70", "")))
+        assertEquals(450, effectiveKcal(parseMacros("", "", "", "450")))
+        assertEquals("P 12 · C n/a · F 4", macroSummary(12, null, 4))
     }
 }

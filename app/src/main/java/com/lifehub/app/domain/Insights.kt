@@ -73,16 +73,25 @@ fun adherence(plans: List<Plan>, sessions: List<WorkoutSession>, r: DateRange, t
 
 private fun logged(macros: List<MacroDay>, r: DateRange) = macros.filter { it.date in r }
 
+/**
+ * Average protein over the logged days of [r] whose protein is fully known ([MacroDay.proteinExact]): a day with an
+ * n/a quick add only has a lower bound, so it would drag the average down. Null when there is no such day.
+ */
 fun avgProtein(macros: List<MacroDay>, r: DateRange): Int? =
-    logged(macros, r).takeIf { it.isNotEmpty() }?.let { l -> (l.sumOf { it.proteinG }.toDouble() / l.size).roundToInt() }
+    logged(macros, r).filter { it.proteinExact }.takeIf { it.isNotEmpty() }?.let { l -> (l.sumOf { it.proteinG }.toDouble() / l.size).roundToInt() }
 
 fun avgKcal(macros: List<MacroDay>, r: DateRange): Int? =
     logged(macros, r).takeIf { it.isNotEmpty() }?.let { l -> (l.sumOf { it.kcal }.toDouble() / l.size).roundToInt() }
 
-/** (daysOnTarget, loggedDays). */
+/**
+ * (daysOnTarget, decidedDays). A day is on target when its known protein already reaches the target (even with n/a
+ * items); a day below target only counts as missed when its protein is fully known, otherwise it is undecided and left out.
+ */
 fun daysOnTarget(macros: List<MacroDay>, r: DateRange, targetG: Int): Pair<Int, Int> {
     val l = logged(macros, r)
-    return l.count { it.proteinG >= targetG } to l.size
+    val hit = l.count { it.proteinKnown && it.proteinG >= targetG }
+    val missed = l.count { it.proteinExact && it.proteinG < targetG }
+    return hit to hit + missed
 }
 
 data class InsightInput(
@@ -136,6 +145,10 @@ data class MacroAverages(val carbsG: Int, val fatG: Int, val proteinG: Int, val 
 
 fun macroAverages(macros: List<MacroDay>, r: DateRange): MacroAverages? {
     val l = logged(macros, r).takeIf { it.isNotEmpty() } ?: return null
-    fun avg(f: (MacroDay) -> Int) = (l.sumOf(f).toDouble() / l.size).roundToInt()
-    return MacroAverages(avg { it.carbsG }, avg { it.fatG }, avg { it.proteinG }, avg { it.kcal }, l.size)
+    // kcal is always known; each macro averages only the days where it is fully known (n/a quick adds excluded), 0 if none.
+    fun avg(exact: (MacroDay) -> Boolean, f: (MacroDay) -> Int): Int {
+        val d = l.filter(exact)
+        return if (d.isEmpty()) 0 else (d.sumOf(f).toDouble() / d.size).roundToInt()
+    }
+    return MacroAverages(avg({ it.carbsExact }) { it.carbsG }, avg({ it.fatExact }) { it.fatG }, avg({ it.proteinExact }) { it.proteinG }, avg({ true }) { it.kcal }, l.size)
 }

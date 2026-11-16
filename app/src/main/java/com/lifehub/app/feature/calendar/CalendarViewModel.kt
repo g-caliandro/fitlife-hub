@@ -8,7 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.lifehub.app.core.time.todayFlow
 import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.data.model.DayType
-import com.lifehub.app.data.model.MacroDay
+import com.lifehub.app.data.model.QuickAddEntry
 import kotlinx.coroutines.launch
 import com.lifehub.app.data.model.PlanWithExercises
 import com.lifehub.app.data.model.SessionSet
@@ -43,11 +43,12 @@ data class WorkoutCard(
 data class DaySummary(
     val date: LocalDate,
     val workouts: List<WorkoutCard>,
-    val macro: MacroDay?,
     val body: BodyEntry?,
-    /** Food entries + quick add of the day (totals = both). */
+    /** Food entries + quick adds of the day (totals = both). */
     val nutrition: com.lifehub.app.domain.DayNutrition? = null,
-)
+) {
+    val quickAdds: List<QuickAddEntry> get() = nutrition?.quickAdds.orEmpty()
+}
 
 data class CalendarState(
     val today: LocalDate,
@@ -91,7 +92,7 @@ class CalendarViewModel(private val c: AppContainer) : ViewModel() {
             c.sessions.observeCompletedWithSets(d, d), c.food.observeNutrition(d, d), c.body.observeBetween(d, d), c.plans.observePlans(),
         ) { s, m, b, plans ->
             val byId = plans.associateBy { it.plan.id }
-            DaySummary(d, s.map { buildWorkoutCard(it, byId[it.session.planId]) }, m.firstOrNull()?.quickAdd, b.firstOrNull(), m.firstOrNull())
+            DaySummary(d, s.map { buildWorkoutCard(it, byId[it.session.planId]) }, b.firstOrNull(), m.firstOrNull())
         }
     }
 
@@ -128,39 +129,47 @@ class CalendarViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    /** ⋮ Copy yesterday: duplicates the previous day's food entries (+ quick add if this day has none), with Undo. */
+    /** Swipe-delete of a quick add with Undo. */
+    fun deleteQuickAdd(e: QuickAddEntry) {
+        viewModelScope.launch {
+            c.quickAdds.delete(e.id)
+            com.lifehub.app.core.designsystem.SnackbarBus.show("Removed ${e.displayName}", "Undo") { viewModelScope.launch { c.quickAdds.restore(e) } }
+        }
+    }
+
+    /** ⋮ Copy yesterday: duplicates the previous day's food entries and quick adds, with Undo. */
     fun copyYesterday(date: LocalDate) {
         viewModelScope.launch {
             val now = c.time.now()
             val src = c.food.observeEntries(date.minusDays(1), date.minusDays(1)).first()
-            val srcMacro = c.macros.get(date.minusDays(1))
-            val hadMacro = c.macros.get(date) != null
-            if (src.isEmpty() && srcMacro == null) { com.lifehub.app.core.designsystem.SnackbarBus.show("Nothing logged yesterday"); return@launch }
+            val srcQuick = c.quickAdds.getDay(date.minusDays(1))
+            if (src.isEmpty() && srcQuick.isEmpty()) { com.lifehub.app.core.designsystem.SnackbarBus.show("Nothing logged yesterday"); return@launch }
             val copies = src.map { it.copy(id = java.util.UUID.randomUUID().toString(), date = date, createdAt = now) }
+            // Keep yesterday's order: offset createdAt by the index.
+            val quickCopies = srcQuick.mapIndexed { i, q -> q.copy(id = java.util.UUID.randomUUID().toString(), date = date, createdAt = now.plusMillis(i.toLong() + 1)) }
             copies.forEach { c.food.restoreEntry(it) }
-            val copiedMacro = !hadMacro && srcMacro != null
-            if (copiedMacro) c.macros.upsert(date, srcMacro!!.proteinG, srcMacro.carbsG, srcMacro.fatG, if (srcMacro.kcalIsAuto) null else srcMacro.kcal, now)
-            val n = copies.size + if (copiedMacro) 1 else 0
+            quickCopies.forEach { c.quickAdds.restore(it) }
+            val n = copies.size + quickCopies.size
             com.lifehub.app.core.designsystem.SnackbarBus.show("Copied $n item${if (n == 1) "" else "s"} from yesterday", "Undo") {
                 viewModelScope.launch {
                     copies.forEach { c.food.deleteEntry(it.id) }
-                    if (copiedMacro) c.macros.delete(date)
+                    quickCopies.forEach { c.quickAdds.delete(it.id) }
                 }
             }
         }
     }
 
-    /** ⋮ Clear day: removes all food entries and the quick-add record of [date], with Undo. */
+    /** ⋮ Clear day: removes all food entries and quick adds of [date], with Undo. */
     fun clearDay(date: LocalDate) {
         viewModelScope.launch {
             val entries = c.food.observeEntries(date, date).first()
-            val macro = c.macros.get(date)
+            val quick = c.quickAdds.getDay(date)
             entries.forEach { c.food.deleteEntry(it.id) }
-            if (macro != null) c.macros.delete(date)
+            quick.forEach { c.quickAdds.delete(it.id) }
             com.lifehub.app.core.designsystem.SnackbarBus.show("Day cleared", "Undo") {
                 viewModelScope.launch {
                     entries.forEach { c.food.restoreEntry(it) }
-                    if (macro != null) c.macros.upsert(date, macro.proteinG, macro.carbsG, macro.fatG, if (macro.kcalIsAuto) null else macro.kcal, macro.updatedAt)
+                    quick.forEach { c.quickAdds.restore(it) }
                 }
             }
         }

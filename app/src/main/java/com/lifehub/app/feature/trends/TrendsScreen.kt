@@ -62,10 +62,9 @@ import com.lifehub.app.core.designsystem.fmtKg
 import com.lifehub.app.core.designsystem.fmtRange
 import com.lifehub.app.core.ui.charts.BarChart
 import com.lifehub.app.core.ui.charts.ChartPoint
-import com.lifehub.app.core.ui.charts.DualLineChart
+import com.lifehub.app.core.ui.charts.LineChart
 import com.lifehub.app.core.ui.charts.LineSeries
 import com.lifehub.app.core.ui.charts.TooltipRow
-import com.lifehub.app.data.model.HomePeriod
 import com.lifehub.app.domain.Metric
 import com.lifehub.app.domain.fatPct
 import java.time.LocalDate
@@ -80,7 +79,7 @@ fun TrendsRoute() {
 }
 
 class TrendsCallbacks(
-    val onPeriod: (HomePeriod) -> Unit = {},
+    val onPeriod: (TrendsPeriod) -> Unit = {},
     val onPrev: () -> Unit = {},
     val onNext: () -> Unit = {},
     val onCurrent: () -> Unit = {},
@@ -94,7 +93,7 @@ fun TrendsScreen(state: TrendsUiState?, callbacks: TrendsCallbacks = TrendsCallb
     Column(Modifier.fillMaxSize().background(c.background)) {
         LhScreenHeader(stringResource(R.string.trends_title), Icons.Filled.Insights, actions = {
             if (state != null) Box(Modifier.padding(end = 8.dp)) {
-                LhSegmentedControl(HomePeriod.entries, state.period, callbacks.onPeriod) { if (it == HomePeriod.ONE_WEEK) "1W" else "2W" }
+                LhSegmentedControl(TrendsPeriod.entries, state.period, callbacks.onPeriod) { it.label }
             }
         })
         if (state == null) return@Column
@@ -121,7 +120,7 @@ fun TrendsScreen(state: TrendsUiState?, callbacks: TrendsCallbacks = TrendsCallb
     }
 }
 
-/** ‹  range  › — tapping the range jumps back to the current period (1W/2W toggle sits in the header). */
+/** ‹  range  › — tapping the range jumps back to the current period (2W/4W toggle sits in the header). */
 @Composable
 private fun PeriodBar(state: TrendsUiState, cb: TrendsCallbacks) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +250,7 @@ private fun DailyAverageCard(state: TrendsUiState) {
     }
 }
 
-/** Weight (left axis) and muscle (right axis) on one dual-axis chart; tap/drag for the day's weight, muscle and fat %. */
+/** Weight and muscle on one chart with a single shared kg axis; tap/drag for the day's weight, muscle and fat %. */
 @Composable
 private fun BodyCard(state: TrendsUiState, initialSelection: LocalDate?) {
     val c = LhTheme.colors
@@ -265,10 +264,12 @@ private fun BodyCard(state: TrendsUiState, initialSelection: LocalDate?) {
             Legend(muscleColor, "Muscle", i.muscle.current)
         }
         Spacer(Modifier.height(8.dp))
-        DualLineChart(
+        LineChart(
             state.range,
-            LineSeries("Weight", state.body.map { ChartPoint(it.date, it.weightKg) }, weightColor, "kg"),
-            LineSeries("Muscle", state.body.mapNotNull { e -> e.muscleKg?.let { ChartPoint(e.date, it) } }, muscleColor, "kg"),
+            listOf(
+                LineSeries("Weight", state.body.map { ChartPoint(it.date, it.weightKg) }, weightColor, "kg"),
+                LineSeries("Muscle", state.body.mapNotNull { e -> e.muscleKg?.let { ChartPoint(e.date, it) } }, muscleColor, "kg"),
+            ),
             today = state.today,
             initialSelection = initialSelection,
             tooltip = { d ->

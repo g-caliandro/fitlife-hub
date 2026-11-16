@@ -21,7 +21,8 @@ import kotlin.math.roundToInt
 
 /**
  * Daily bar chart (one slot per day). Y axis from 0. Bars at/above [targetLine] use [aboveTargetColor] if given.
- * [today] only affects x-label emphasis.
+ * [today] only affects x-label emphasis. Weekends get a subtle shaded column and their own x-label tone so long
+ * ranges (4W = 28 bars) stay easy to read.
  */
 @Composable
 fun BarChart(
@@ -47,6 +48,7 @@ fun BarChart(
         val plot = plotArea(32.dp, 8.dp)
         val dataMax = max(inRange.maxOfOrNull { it.value } ?: 0.0, targetLine ?: 0.0)
         val top = niceMax(dataMax)
+        drawWeekendBands(range, plot, weekendBand(c))
         drawGrid(plot, c.border)
         val muted = c.mutedForeground
         if (inRange.isNotEmpty() || targetLine != null) {
@@ -55,7 +57,7 @@ fun BarChart(
                 drawLabel(m, valueFormatter(v), labelStyle(muted), plot.left - 4.dp.toPx(), y, Align.End)
             }
         }
-        drawXLabels(m, range, plot, muted, c.foreground, today)
+        drawXLabels(m, range, plot, muted, c.foreground, today, weekendColor = weekendLabel(c))
         val days = range.days
         val slot = plot.width / days.size
         val bw = min(slot * 0.56f, 20.dp.toPx())
@@ -89,3 +91,9 @@ fun BarChart(
         }
     }
 }
+
+/** Weekend column shade: a touch of `muted` over the card, visible but quiet in both themes. */
+internal fun weekendBand(c: com.lifehub.app.core.designsystem.LhColors): Color = c.muted.copy(alpha = if (c.isDark) 0.75f else 0.8f)
+
+/** Weekend x-label tone: between the muted labels and the foreground. */
+internal fun weekendLabel(c: com.lifehub.app.core.designsystem.LhColors): Color = c.foreground.copy(alpha = if (c.isDark) 0.85f else 0.8f)

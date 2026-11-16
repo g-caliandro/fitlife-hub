@@ -42,14 +42,26 @@ class FormsScreenshotTest {
 
     private fun ex(n: String) = MockDataGenerator.exercises.first { it.name == n }
 
+    @Config(qualifiers = "w360dp-h860dp-xxhdpi")
     @Test fun macro() = both("macro") {
         MacroEditScreen(
-            MacroEditState(today, today, "150", "240", "70", "", copySource = MacroDay(today.minusDays(1), 1, 1, 1, 1, true, now)),
+            MacroEditState(today, today, protein = "150", carbs = "240", fat = "70", kcal = "",
+                copySource = QuickAddEntry("y", today.minusDays(1), null, 300, 1, 1, 1, false, now)),
             {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false,
         )
     }
+    @Config(qualifiers = "w360dp-h860dp-xxhdpi")
     @Test fun macroManual() = both("macro-manual") {
-        MacroEditScreen(MacroEditState(today, today, "150", "240", "70", "2500", existing = true), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
+        MacroEditScreen(MacroEditState(today, today, id = "q", protein = "150", carbs = "240", fat = "70", kcal = "2500", existing = true), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
+    }
+    /** kcal only, macros unknown (n/a), with a name. */
+    @Config(qualifiers = "w360dp-h860dp-xxhdpi")
+    @Test fun macroKcalOnly() = both("macro-kcal-only") {
+        MacroEditScreen(MacroEditState(today, today, id = "q", name = "Pizza out", kcal = "1050", existing = true), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
+    }
+    @Config(qualifiers = "w360dp-h860dp-xxhdpi")
+    @Test fun macroError() = both("macro-error") {
+        MacroEditScreen(MacroEditState(today, today, protein = "30", showError = true), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
     }
     @Test fun body() = both("body") {
         BodyEditScreen(BodyEditState(today, today, "76.9", "37.3", "12.5", lastDate = today.minusDays(10), lastWeight = 77.2), {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
@@ -69,7 +81,7 @@ class FormsScreenshotTest {
         fun set(i: Int) = SessionSet("s$i", "s1", "pu", "Pull-up", 0, i, TargetType.REPS, 6, 6, null, 10.0, SetStatus.DONE, now, 90)
         SessionEditScreen(
             SessionEditUi(true, title = "Pull", date = today, today = today, durationMin = "55", rpe = 8, rows = (0..2).map { EditRow(set(it), "10", "6", true) }),
-            {}, {}, {}, {}, {}, {}, {}, {}, { _, _ -> },
+            {}, {}, {}, {}, {}, {}, {}, { _, _ -> },
         )
     }
 }

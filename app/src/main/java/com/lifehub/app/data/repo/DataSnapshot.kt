@@ -10,7 +10,7 @@ data class DataSnapshot(
     val plans: List<Plan>, val planExercises: List<PlanExercise>,
     val exercises: List<Exercise>,
     val sessions: List<WorkoutSession>, val sets: List<SessionSet>,
-    val macros: List<MacroDay>, val bodyEntries: List<BodyEntry>,
+    val quickAdds: List<QuickAddEntry>, val bodyEntries: List<BodyEntry>,
     val achievements: List<Achievement> = emptyList(),
     val foods: List<Food> = emptyList(), val foodEntries: List<FoodEntry> = emptyList(),
 )

@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.lifehub.app.core.designsystem.fmtDateFull
 import java.time.LocalTime
 import java.util.UUID
 
@@ -126,7 +127,6 @@ class SessionEditViewModel(private val c: AppContainer, handle: SavedStateHandle
     }
 
     private fun update(f: (SessionEditUi) -> SessionEditUi) { _ui.value = f(_ui.value) }
-    fun setDate(d: LocalDate) = update { it.copy(date = d) }
     fun setStart(t: LocalTime) = update { it.copy(startTime = t) }
     fun setDuration(v: String) = update { it.copy(durationMin = v) }
     fun setRpe(v: Int?) = update { it.copy(rpe = v) }
@@ -149,7 +149,7 @@ class SessionEditViewModel(private val c: AppContainer, handle: SavedStateHandle
         } else {
             val o = original ?: return
             o.copy(
-                date = u.date, durationSec = dur, endedAt = dur?.let { o.startedAt.plusSeconds(it.toLong()) } ?: o.endedAt,
+                durationSec = dur, endedAt = dur?.let { o.startedAt.plusSeconds(it.toLong()) } ?: o.endedAt,
                 rpe = u.rpe, notes = u.notes.trim().ifEmpty { null },
             )
         }
@@ -193,7 +193,7 @@ class SessionEditViewModel(private val c: AppContainer, handle: SavedStateHandle
 @Composable
 fun SessionEditScreen(
     ui: SessionEditUi, onBack: () -> Unit, onSave: () -> Unit, onDelete: (() -> Unit)?,
-    onDate: (LocalDate) -> Unit, onStart: (LocalTime) -> Unit, onDuration: (String) -> Unit, onRpe: (Int?) -> Unit,
+    onStart: (LocalTime) -> Unit, onDuration: (String) -> Unit, onRpe: (Int?) -> Unit,
     onNotes: (String) -> Unit, onRow: (Int, (EditRow) -> EditRow) -> Unit,
 ) {
     val c = LhTheme.colors
@@ -211,15 +211,13 @@ fun SessionEditScreen(
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LhCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    LhDatePickerField(ui.date, onDate, Modifier.fillMaxWidth(), label = "Date", maxDate = ui.today)
+                    // The date is fixed: a saved session keeps its day, a manual log takes the Diary day it was opened from.
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                        ReadOnlyField("Date", fmtDateFull(ui.date), Modifier.weight(1f).testTag("session-date"))
                         if (ui.manual) LhTimePickerField(ui.startTime, onStart, Modifier.weight(1f), label = "Start")
-                        else Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Start", style = LhType.label, color = c.foreground)
-                            Text(ui.startTime.toString(), style = LhType.bodyLarge, color = c.mutedForeground, modifier = Modifier.padding(vertical = 10.dp))
-                        }
-                        LhNumberField(ui.durationMin, onDuration, Modifier.weight(1f), label = "Duration", suffix = "min")
+                        else ReadOnlyField("Start", ui.startTime.toString(), Modifier.weight(1f))
                     }
+                    LhNumberField(ui.durationMin, onDuration, Modifier.fillMaxWidth(), label = "Duration", suffix = "min")
                     Text("RPE (optional)", style = LhType.label, color = c.foreground)
                     RpeChips(ui.rpe, onRpe)
                     LhTextField(ui.notes, onNotes, label = "Notes", singleLine = false, minLines = 2)
@@ -258,5 +256,14 @@ fun SessionEditScreen(
     if (confirmDelete && onDelete != null) {
         LhConfirmDialog("Delete session?", "This session and its sets will be deleted.", "Delete",
             onConfirm = { confirmDelete = false; onDelete() }, onDismiss = { confirmDelete = false })
+    }
+}
+
+@Composable
+private fun ReadOnlyField(label: String, value: String, modifier: Modifier = Modifier) {
+    val c = LhTheme.colors
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = LhType.label, color = c.foreground)
+        Text(value, style = LhType.bodyLarge, color = c.mutedForeground, maxLines = 1, modifier = Modifier.padding(vertical = 10.dp))
     }
 }

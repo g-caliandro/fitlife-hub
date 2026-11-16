@@ -37,7 +37,7 @@ enum class Confirm { MOCK, CLEAR }
 data class ImportPreview(val snapshot: DataSnapshot) {
     val summary: String
         get() = "${snapshot.goals.size} goals, ${snapshot.plans.size} plans, ${snapshot.sessions.size} sessions, " +
-            "${snapshot.macros.size} macro days, ${snapshot.bodyEntries.size} weigh-ins."
+            "${snapshot.quickAdds.size} quick adds, ${snapshot.foodEntries.size} food entries, ${snapshot.bodyEntries.size} weigh-ins."
 }
 
 data class SettingsUiState(
@@ -161,7 +161,7 @@ class SettingsViewModel(private val app: Application, private val c: AppContaine
                     c.achievements.recalculate(c.time.today(), c.settings.current().proteinTargetG, c.time.zone, c.time.now())
                 }
                 NotificationScheduler.schedule(app, c.settings.current().dailyCheckTime, replace = true)
-                val n = snap.goals.size + snap.plans.size + snap.sessions.size + snap.macros.size + snap.bodyEntries.size
+                val n = snap.goals.size + snap.plans.size + snap.sessions.size + snap.quickAdds.size + snap.foodEntries.size + snap.bodyEntries.size
                 snack("Imported $n items")
             } catch (e: Exception) { snack("Import failed: ${e.message}") }
             busy(null)

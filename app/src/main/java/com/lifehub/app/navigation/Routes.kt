@@ -22,7 +22,7 @@ object Routes {
     const val WORKOUT_LIVE = "workout/live"
     const val WORKOUT_LOG = "workout/log?date={date}"
     const val SESSION = "session/{sessionId}"
-    const val MACRO_EDIT = "macros/edit?date={date}"
+    const val MACRO_EDIT = "macros/edit?date={date}&id={id}"
     const val FOOD_ADD = "food/add?date={date}"
     const val FOOD_DETAIL = "food/detail/{foodId}?date={date}&entryId={entryId}"
     const val FOOD_CUSTOM = "food/custom?foodId={foodId}&barcode={barcode}"
@@ -59,7 +59,8 @@ object Routes {
     fun workoutPreview(planId: String) = "workout/preview/$planId"
     fun workoutLog(date: LocalDate) = "workout/log?date=${date.toEpochDay()}"
     fun session(id: String) = "session/$id"
-    fun macroEdit(date: LocalDate) = "macros/edit?date=${date.toEpochDay()}"
+    /** Quick-add form: a new entry on [date], or edit the entry [id]. */
+    fun macroEdit(date: LocalDate, id: String? = null) = "macros/edit?date=${date.toEpochDay()}" + (id?.let { "&id=$it" } ?: "")
     fun foodAdd(date: LocalDate) = "food/add?date=${date.toEpochDay()}"
     fun foodDetail(foodId: String, date: LocalDate, entryId: String? = null) =
         "food/detail/$foodId?date=${date.toEpochDay()}" + (entryId?.let { "&entryId=$it" } ?: "")

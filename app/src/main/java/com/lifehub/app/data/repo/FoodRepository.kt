@@ -58,7 +58,7 @@ class FoodRepositoryImpl(private val db: LifeHubDatabase) : FoodRepository {
 
     override fun observeEntries(from: LocalDate, to: LocalDate) = entries.observeBetween(from, to)
     override fun observeNutrition(from: LocalDate, to: LocalDate): Flow<List<DayNutrition>> =
-        combine(db.macroDao().observeBetween(from, to), entries.observeBetween(from, to)) { m, e -> mergeNutrition(m, e) }
+        combine(db.quickAddDao().observeBetween(from, to), entries.observeBetween(from, to)) { m, e -> mergeNutrition(m, e) }
 
     override suspend fun getEntry(id: String) = entries.get(id)
 

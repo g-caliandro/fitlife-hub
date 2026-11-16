@@ -43,7 +43,7 @@ class Wp3ScreenshotTest {
     }
 
     @Test fun macroForm() = shot("wp3-macro-form") {
-        MacroEditScreen(MacroEditState(today, today, "150", "240", "70", ""), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
+        MacroEditScreen(MacroEditState(today, today, protein = "150", carbs = "240", fat = "70", kcal = ""), {}, {}, {}, {}, {}, {}, {}, {}, autoFocus = false)
     }
 
     @Test fun bodyForm() = shot("wp3-body-form") {

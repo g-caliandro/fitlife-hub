@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 class ImportException(message: String) : Exception(message)
 
 object JsonCodec {
-    const val SCHEMA_VERSION = 6
+    const val SCHEMA_VERSION = 7
     private const val MIN_SCHEMA_VERSION = 1
 
     val README = "Life Hub export. All personal fitness data of one user. `goals` are objectives with a time window " +
@@ -25,14 +25,15 @@ object JsonCodec {
         "reps as possible, SECONDS = timed hold), `targetValue`, optional `weightKg` (added load) and `restSeconds`; " +
         "`dayType` (PULL, PUSH, LEGS, CORE or null) tags the kind of training day; `exercises` are the user's own exercise library: `category` PULL, PUSH, CORE or LEGS, `defaultTargetType` REPS or SECONDS; `iconKey` is the plan's icon (null = default); `weekdays` are ISO weekdays (1=Mon..7=Sun) on which the plan is scheduled. `sessions` are performed workouts " +
         "(`status` COMPLETED or IN_PROGRESS) with `sets`: `actualReps` for REPS/MAX, `actualSeconds` for SECONDS, `status` " +
-        "DONE/SKIPPED/PENDING, `weightKg` added load. `macros` are daily totals (one per date): proteinG, carbsG, fatG, kcal " +
-        "(kcalIsAuto=true means kcal = 4·protein + 4·carbs + 9·fat). `bodyEntries` are scale readings per date: weightKg, " +
+        "DONE/SKIPPED/PENDING, `weightKg` added load. `quickAdds` are manual calorie/macro entries (any number per date): " +
+        "optional `name`, `kcal` (always set), proteinG/carbsG/fatG (null = unknown, NOT zero; daily sums only add the known " +
+        "values), kcalIsAuto=true means kcal = 4·protein + 4·carbs + 9·fat. Files up to schemaVersion 6 had `macros` (one per date) instead. `bodyEntries` are scale readings per date: weightKg, " +
         "muscleKg, fatKg, fatPct (derived). `settings.proteinTargetG` is the daily protein goal. Ids are UUID strings and are " +
         "referentially consistent within this file. `achievements` is the achievements log: `kind` (GOAL_ACHIEVED = big, PR_REPS, " +
         "PR_HOLD, PR_WEIGHT, PERFECT_WEEK_TRAINING, PERFECT_MONTH_TRAINING, PROTEIN_WEEK, SESSION_MILESTONE), `achievedOn` date, " +
         "optional links to exercise/goal/session, `dedupeKey` unique. `foods` are custom foods and cached Open Food Facts products " +
         "(values per 100 g: kcal100, protein100, carbs100, fat100; servingSizeG optional; imageUrl = product photo URL or null); `foodEntries` are logged foods per date with " +
-        "a name snapshot, `grams` and the computed kcal/proteinG/carbsG/fatG. Daily totals = sum of `foodEntries` + the `macros` quick add of that date. " +
+        "a name snapshot, `grams` and the computed kcal/proteinG/carbsG/fatG. Daily totals = sum of `foodEntries` + `quickAdds` of that date. " +
         "`settings.kcalTarget`/`carbsTargetG`/`fatTargetG` are optional daily targets."
 
     val json = Json {
@@ -79,8 +80,8 @@ object JsonCodec {
                 },
             )
         },
-        macros = s.macros.sortedBy { it.date }.map {
-            MacroDto(it.date.toString(), it.proteinG, it.carbsG, it.fatG, it.kcal, it.kcalIsAuto, it.updatedAt.toEpochMilli())
+        quickAdds = s.quickAdds.sortedWith(compareBy({ it.date }, { it.createdAt }, { it.id })).map {
+            QuickAddDto(it.id, it.date.toString(), it.name, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, it.createdAt.toEpochMilli())
         },
         bodyEntries = s.bodyEntries.sortedBy { it.date }.map {
             BodyDto(it.date.toString(), it.weightKg, it.muscleKg, it.fatKg, it.updatedAt.toEpochMilli(),
@@ -155,7 +156,13 @@ object JsonCodec {
                 SessionSet(it.id, x.id, it.exerciseId, it.exerciseName, it.exerciseOrder, it.setIndex, it.targetType, it.targetValue,
                     it.actualReps, it.actualSeconds, it.weightKg, it.status, it.completedAt?.let(::inst), it.restSeconds)
             } }.filter { it.sessionId in sessionIds },
-            macros = d.macros.map { MacroDay(LocalDate.parse(it.date), it.proteinG, it.carbsG, it.fatG, it.kcal, it.kcalIsAuto, inst(it.updatedAt)) },
+            // v7 quickAdds + legacy per-day macros (<= v6), converted like MIGRATION_6_7 (id "macro-<epochDay>", no name).
+            quickAdds = d.quickAdds.map {
+                QuickAddEntry(it.id, LocalDate.parse(it.date), it.name?.trim()?.takeIf { n -> n.isNotEmpty() }, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, inst(it.createdAt))
+            } + d.macros.map {
+                val date = LocalDate.parse(it.date)
+                QuickAddEntry("macro-${date.toEpochDay()}", date, null, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, inst(it.updatedAt))
+            },
             bodyEntries = d.bodyEntries.map { BodyEntry(LocalDate.parse(it.date), it.weightKg, it.muscleKg, it.fatKg, inst(it.updatedAt)) },
             foods = d.foods.map { Food(it.id, it.source, it.barcode, it.name, it.brand, it.kcal100, it.protein100, it.carbs100, it.fat100, it.servingSizeG, it.favorite, it.lastUsedAt?.let(::inst), it.imageUrl) },
             foodEntries = d.foodEntries.map { FoodEntry(it.id, LocalDate.parse(it.date), it.foodId, it.name, it.brand, it.grams, it.kcal, it.proteinG, it.carbsG, it.fatG, inst(it.createdAt), it.imageUrl) },

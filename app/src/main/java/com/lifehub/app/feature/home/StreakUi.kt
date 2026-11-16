@@ -1,5 +1,19 @@
 package com.lifehub.app.feature.home
 
+import android.os.Build
+import android.view.ViewGroup
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -24,7 +38,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -42,8 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -86,9 +97,38 @@ fun StreakBadge(days: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
  * Streak sheet with the last 7 days. [extended] = the once-a-day "streak extended" celebration (after the workout
  * that extended it): the flame pops in, the number rolls from yesterday's value to today's. Otherwise it is opened on
  * demand from the badge: no roll, neutral copy, and a grey flame with an encouraging line at 0.
+ *
+ * Full-screen dialog window. Insets: the dialog window gets its system-bar insets asynchronously (often 0 on the
+ * first frame, and on some OEM builds never), so we take the max of the host (activity, edge-to-edge) insets, which
+ * are already known when the dialog opens, and the dialog's own. The layout therefore starts at its final size: no
+ * jump when the dialog insets arrive, and the bottom button never sits under the navigation bar.
  */
 @Composable
 fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, extended: Boolean = true, onDismiss: () -> Unit) {
+    val density = LocalDensity.current
+    val hostTop = WindowInsets.safeDrawing.getTop(density)
+    val hostBottom = WindowInsets.safeDrawing.getBottom(density)
+    Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        // Make the dialog window cover the whole display (behind status + navigation bars) so the content's
+        // fillMaxSize really is the screen and the insets below are measured against it.
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            window?.run {
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) attributes = attributes.apply { setFitInsetsTypes(0) }
+            }
+        }
+        val top = with(density) { maxOf(hostTop, WindowInsets.safeDrawing.getTop(density)).toDp() }
+        val bottom = with(density) { maxOf(hostBottom, WindowInsets.safeDrawing.getBottom(density)).toDp() }
+        StreakCelebrationContent(days, week, extended, PaddingValues(top = top, bottom = bottom), onDismiss)
+    }
+}
+
+/** Dialog-free body of [StreakCelebration]; [insets] = system bar padding (top/bottom). Public for screenshot tests. */
+@Composable
+fun StreakCelebrationContent(
+    days: Int, week: List<Pair<LocalDate, StreakDay>>, extended: Boolean, insets: PaddingValues, onDismiss: () -> Unit,
+) {
     val c = LhTheme.colors
     val reduced = LhMotion.reduced
     val on = days > 0
@@ -97,55 +137,69 @@ fun StreakCelebration(days: Int, week: List<Pair<LocalDate, StreakDay>>, extende
     LaunchedEffect(Unit) {
         if (!reduced) {
             launch { pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 260f)) }
-            delay(550)
-            shown = days
+            if (extended) { delay(550); shown = days }
         }
     }
     val flame = if (on) StreakOrange else c.mutedForeground.copy(alpha = 0.5f)
     val wobble by rememberInfiniteTransition(label = "flame").animateFloat(
         -4f, 4f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "flame-rot",
     )
-    Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Column(
+        Modifier.fillMaxSize().background(c.background).padding(insets).padding(horizontal = 24.dp).testTag("streak-celebration"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Scrolls on short screens / large font scale; centred otherwise (verticalScroll keeps the weight's min height).
         Column(
-            Modifier.fillMaxSize().background(c.background).padding(horizontal = 24.dp).testTag("streak-celebration"),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
-            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (on) Sparks(pop.value)
-                    Icon(
-                        Icons.Filled.LocalFireDepartment, null,
-                        Modifier.size(150.dp).scale(pop.value).rotate(if (reduced || !on) 0f else wobble), tint = flame,
-                    )
-                }
-                AnimatedContent(
-                    shown, label = "streak-count",
-                    transitionSpec = { (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) },
-                ) { n ->
+            // Fixed-size stage: the sparks ring is drawn inside it, and pop/wobble are graphics-layer only, so the
+            // animation never changes the layout (the old Box grew 150 -> 220dp while sparks were visible: jitter).
+            Box(Modifier.size(FlameStage), contentAlignment = Alignment.Center) {
+                if (on) Sparks(pop.value)
+                Icon(
+                    Icons.Filled.LocalFireDepartment, null,
+                    Modifier.size(150.dp).graphicsLayer {
+                        scaleX = pop.value; scaleY = pop.value
+                        rotationZ = if (reduced || !on) 0f else wobble
+                    },
+                    tint = flame,
+                )
+            }
+            // Fixed-height slot for the rolling number: the roll slides inside it (clipped), never resizing it.
+            AnimatedContent(
+                shown, Modifier.fillMaxWidth().height(96.dp), label = "streak-count", contentAlignment = Alignment.Center,
+                transitionSpec = {
+                    (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) using SizeTransform(clip = true) { _, _ -> snap() }
+                },
+            ) { n ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("$n", style = LhType.tnum(LhType.display.copy(fontSize = 88.sp, lineHeight = 96.sp)), color = if (on) StreakOrange else c.mutedForeground, modifier = Modifier.testTag("streak-count"))
                 }
-                Text(if (!on) "No streak yet" else if (extended) "day streak!" else "day streak", style = LhType.title, color = c.foreground)
-                Text(
-                    when {
-                        !on -> "Finish a workout to light the flame. Rest days keep it alive; skipped a planned workout? Make it up the next day."
-                        extended -> "Workout done. Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
-                        else -> "Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
-                    },
-                    style = LhType.body, color = c.mutedForeground, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp),
-                )
-                Spacer(Modifier.height(28.dp))
-                WeekStrip(week)
             }
-            LhButton(if (on) "Keep it up" else "Got it", onDismiss, Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp).testTag("streak-continue"), size = LhButtonSize.Lg)
+            Text(if (!on) "No streak yet" else if (extended) "day streak!" else "day streak", style = LhType.title, color = c.foreground)
+            Text(
+                when {
+                    !on -> "Finish a workout to light the flame. Rest days keep it alive; skipped a planned workout? Make it up the next day."
+                    extended -> "Workout done. Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
+                    else -> "Rest days keep the flame alive. Skipped a planned workout? Make it up the next day."
+                },
+                style = LhType.body, color = c.mutedForeground, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp),
+            )
+            Spacer(Modifier.height(28.dp))
+            WeekStrip(week)
         }
+        LhButton(if (on) "Keep it up" else "Got it", onDismiss, Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp).testTag("streak-continue"), size = LhButtonSize.Lg)
     }
 }
+
+private val FlameStage = 170.dp
 
 @Composable
 private fun Sparks(progress: Float) {
     if (progress <= 0f || progress >= 0.999f) return
-    Canvas(Modifier.size(220.dp)) {
-        val r = size.minDimension / 2 * progress
+    Canvas(Modifier.fillMaxSize()) {
+        val r = (size.minDimension / 2 - 5.dp.toPx()) * progress
         for (k in 0 until 10) {
             val a = Math.toRadians(36.0 * k - 90)
             drawCircle(StreakOrange.copy(alpha = (1f - progress).coerceIn(0f, 1f)), 5.dp.toPx(), center + Offset((Math.cos(a) * r).toFloat(), (Math.sin(a) * r).toFloat()))

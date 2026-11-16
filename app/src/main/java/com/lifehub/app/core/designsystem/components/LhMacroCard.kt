@@ -24,6 +24,8 @@ import kotlin.math.roundToInt
 @Composable
 fun LhMacroCard(
     label: String, color: Color, current: Double, target: Double?, modifier: Modifier = Modifier, unit: String = "g", metric: MetricKind? = null,
+    /** The value is unknown (only n/a quick adds): shows "—" instead of 0. */
+    unknown: Boolean = false,
 ) {
     val c = LhTheme.colors
     LhCard(modifier, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp)) {
@@ -35,7 +37,7 @@ fun LhMacroCard(
         Spacer(Modifier.height(12.dp))
         LhProgressBar(if (target != null && target > 0) (current / target).toFloat() else 0f, color = color, height = 8.dp)
         Spacer(Modifier.height(12.dp))
-        val cur = current.roundToInt()
+        val cur = if (unknown) "\u2014" else current.roundToInt().toString()
         val txt = if (target != null) "$cur/${target.roundToInt()} $unit" else "$cur $unit"
         Text(txt, style = LhType.tnum(LhType.label), color = c.foreground, maxLines = 1)
     }

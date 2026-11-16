@@ -107,11 +107,22 @@ object WorkoutOps {
         return SetInput(w, v)
     }
 
-    /** Ruler weight -> dock text ("" = no weight / bodyweight). */
+    /**
+     * Rows of a scroll picker: 0..[max] every [step], plus [exact] values off that grid (a 32 s target on a 5 s wheel,
+     * 12.3 kg on a 0.5 kg wheel) so they stay representable. Sorted, deduplicated (to 0.01), negatives dropped.
+     */
+    fun pickerValues(step: Double, max: Double, exact: Collection<Double?>): List<Double> {
+        val n = (max / step).toInt()
+        val grid = (0..n).map { Math.round(it * step * 100) / 100.0 }
+        val extra = exact.filterNotNull().filter { it >= 0 }.map { Math.round(it * 100) / 100.0 }
+        return (grid + extra).distinct().sorted()
+    }
+
+    /** Picker weight -> dock text ("" = no weight / bodyweight). */
     fun weightInput(kg: Double): String = if (kg <= 0.0) "" else weightText(kg)
 
     /**
-     * Ruler start value when the set has none (MAX sets): what was done on the same set last time, else on the
+     * Picker start value when the set has none (MAX sets): what was done on the same set last time, else on the
      * previous set of this exercise in this session, else 30 s for a hold, else 1 rep.
      */
     fun fallbackValue(set: SessionSet, sameSession: List<SessionSet>, last: SessionSet?): String {

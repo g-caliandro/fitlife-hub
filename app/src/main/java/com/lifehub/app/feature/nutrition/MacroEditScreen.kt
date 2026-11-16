@@ -42,6 +42,7 @@ import com.lifehub.app.core.designsystem.components.LhConfirmDialog
 import com.lifehub.app.core.designsystem.components.LhDatePickerField
 import com.lifehub.app.core.designsystem.components.LhIconButton
 import com.lifehub.app.core.designsystem.components.LhNumberField
+import com.lifehub.app.core.designsystem.components.LhTextField
 import com.lifehub.app.core.designsystem.components.LhTopBar
 import com.lifehub.app.core.designsystem.fmtDateFull
 import com.lifehub.app.core.designsystem.fmtInt
@@ -61,18 +62,22 @@ fun MacroEditRoute(onBack: () -> Unit) {
     MacroEditScreen(
         state, onBack,
         onDate = vm::setDate, onProtein = vm::setProtein, onCarbs = vm::setCarbs, onFat = vm::setFat, onKcal = vm::setKcal,
-        onCopy = vm::copyFromPrevious,
+        onCopy = vm::copyFromPrevious, onName = vm::setName,
         onSave = { vm.save { undo -> onBack(); SnackbarBus.show(savedMsg, "Undo", undo) } },
         onDelete = { vm.delete { undo -> onBack(); SnackbarBus.show(deletedMsg, "Undo", undo) } },
     )
 }
 
+/**
+ * Quick add: calories (required) + optional name and protein/carbs/fat. A blank macro is unknown ("n/a"), not 0.
+ * kcal may stay blank only when all three macros are given (then 4·P + 4·C + 9·F).
+ */
 @Composable
 fun MacroEditScreen(
     state: MacroEditState, onBack: () -> Unit,
     onDate: (java.time.LocalDate) -> Unit, onProtein: (String) -> Unit, onCarbs: (String) -> Unit,
     onFat: (String) -> Unit, onKcal: (String) -> Unit, onSave: () -> Unit, onDelete: () -> Unit,
-    autoFocus: Boolean = true, onCopy: () -> Unit = {},
+    autoFocus: Boolean = true, onCopy: () -> Unit = {}, onName: (String) -> Unit = {},
 ) {
     val c = LhTheme.colors
     val focus = remember { FocusRequester() }
@@ -85,9 +90,9 @@ fun MacroEditScreen(
         LhTopBar(stringResource(if (state.existing) R.string.nut_title_edit else R.string.nut_title_log), onBack = onBack, actions = {
             if (state.existing) {
                 Box {
-                    LhIconButton(Icons.Outlined.MoreVert, stringResource(R.string.nut_more), { menu = true })
+                    LhIconButton(Icons.Outlined.MoreVert, stringResource(R.string.nut_more), { menu = true }, Modifier.testTag("macro-more"))
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menu = false; confirm = true })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menu = false; confirm = true }, modifier = Modifier.testTag("macro-delete"))
                     }
                 }
             }
@@ -96,37 +101,44 @@ fun MacroEditScreen(
             LhCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     LhDatePickerField(state.date, onDate, label = stringResource(R.string.nut_date), maxDate = state.today)
-                    if (state.existing) Text(stringResource(R.string.nut_editing_existing), style = LhType.captionMuted)
+                    LhTextField(
+                        state.name, onName, Modifier.fillMaxWidth().testTag("macro-name"), label = "Name (optional)",
+                        placeholder = "e.g. Pizza out", maxLength = 40,
+                    )
                 }
             }
-            Text("Macros", style = LhType.heading, color = c.foreground)
             LhCard(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        "≈ ${fmtInt(if (state.kcal.isBlank()) auto else state.kcal.toIntOrNull() ?: auto)} kcal", style = LhType.tnum(LhType.stat), color = c.foreground,
-                        modifier = Modifier.testTag("macro-auto-chip"),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LhNumberField(state.protein, { onProtein(it) }, Modifier.weight(1f).focusRequester(focus).testTag("macro-protein"), label = stringResource(R.string.nut_protein), suffix = "g")
-                        LhNumberField(state.carbs, { onCarbs(it) }, Modifier.weight(1f).testTag("macro-carbs"), label = stringResource(R.string.nut_carbs), suffix = "g")
-                        LhNumberField(state.fat, { onFat(it) }, Modifier.weight(1f).testTag("macro-fat"), label = stringResource(R.string.nut_fat), suffix = "g")
-                    }
-                    if (state.showError) Text(stringResource(R.string.nut_error_empty), style = LhType.caption, color = c.destructive)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LhNumberField(
-                        state.kcal, onKcal, Modifier.fillMaxWidth().testTag("macro-kcal"), label = "Override kcal (optional)",
-                        placeholder = "Auto", suffix = "kcal", imeAction = ImeAction.Done, onImeAction = onSave,
+                        state.kcal, onKcal, Modifier.fillMaxWidth().focusRequester(focus).testTag("macro-kcal"), label = stringResource(R.string.nut_kcal_label),
+                        placeholder = if (auto != null) "Auto ${fmtInt(auto)}" else "Required", suffix = "kcal",
+                        error = if (state.showError) stringResource(R.string.nut_error_empty) else null,
                     )
-                    Text(
-                        if (state.kcal.isBlank()) "Auto · 4·P + 4·C + 9·F" else "Manual · auto would be ${fmtInt(auto)}",
-                        style = LhType.captionMuted,
-                    )
+                    val hint = when {
+                        state.kcal.isNotBlank() && auto != null -> "Manual · from macros it would be ${fmtInt(auto)}"
+                        state.kcal.isBlank() && auto != null -> "Auto · 4·P + 4·C + 9·F"
+                        else -> null
+                    }
+                    if (hint != null && !state.showError) Text(hint, style = LhType.captionMuted, modifier = Modifier.testTag("macro-auto-chip"))
+                    Text("Macros (optional)", style = LhType.label, color = c.foreground, modifier = Modifier.padding(top = 4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LhNumberField(state.protein, { onProtein(it) }, Modifier.weight(1f).testTag("macro-protein"), label = stringResource(R.string.nut_protein), placeholder = "n/a", suffix = "g")
+                        LhNumberField(state.carbs, { onCarbs(it) }, Modifier.weight(1f).testTag("macro-carbs"), label = stringResource(R.string.nut_carbs), placeholder = "n/a", suffix = "g")
+                        LhNumberField(
+                            state.fat, { onFat(it) }, Modifier.weight(1f).testTag("macro-fat"), label = stringResource(R.string.nut_fat), placeholder = "n/a", suffix = "g",
+                            imeAction = ImeAction.Done, onImeAction = onSave,
+                        )
+                    }
+                    Text("Leave empty if unknown: shown as n/a, not counted as 0.", style = LhType.captionMuted)
                 }
             }
-            val reached = m.protein >= state.proteinTarget
-            Text(
-                stringResource(R.string.nut_target, state.proteinTarget, m.protein) + if (reached && m.protein > 0) " ✓" else "",
-                style = LhType.caption, color = if (reached && m.protein > 0) c.success else c.mutedForeground,
-            )
+            m.protein?.let { p ->
+                val reached = p >= state.proteinTarget
+                Text(
+                    stringResource(R.string.nut_target, state.proteinTarget, p) + if (reached && p > 0) " ✓" else "",
+                    style = LhType.caption, color = if (reached && p > 0) c.success else c.mutedForeground,
+                )
+            }
         }
         LhSaveBar(
             onSave, Modifier.testTag("save-bar"),
@@ -138,7 +150,7 @@ fun MacroEditScreen(
         )
     }
     if (confirm) LhConfirmDialog(
-        stringResource(R.string.nut_delete_title), stringResource(R.string.nut_delete_msg, fmtDateFull(state.date)),
+        stringResource(R.string.nut_delete_title), stringResource(R.string.nut_delete_msg, state.name.trim().ifEmpty { "Quick add" }, fmtDateFull(state.date)),
         stringResource(R.string.delete), onConfirm = { confirm = false; onDelete() }, onDismiss = { confirm = false },
     )
 }

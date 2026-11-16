@@ -187,9 +187,9 @@ private fun MacroCards(state: HomeUiState) {
     val c = LhTheme.colors
     val m = state.todayMacro
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        LhMacroCard("carbs", c.carbs, (m?.carbsG ?: 0).toDouble(), state.carbsTargetG?.toDouble(), Modifier.weight(1f), metric = MetricKind.Carbs)
-        LhMacroCard("fat", c.fat, (m?.fatG ?: 0).toDouble(), state.fatTargetG?.toDouble(), Modifier.weight(1f), metric = MetricKind.Fat)
-        LhMacroCard("protein", c.protein, (m?.proteinG ?: 0).toDouble(), state.proteinTargetG.toDouble(), Modifier.weight(1f), metric = MetricKind.Protein)
+        LhMacroCard("carbs", c.carbs, (m?.carbsG ?: 0).toDouble(), state.carbsTargetG?.toDouble(), Modifier.weight(1f), metric = MetricKind.Carbs, unknown = m?.carbsKnown == false)
+        LhMacroCard("fat", c.fat, (m?.fatG ?: 0).toDouble(), state.fatTargetG?.toDouble(), Modifier.weight(1f), metric = MetricKind.Fat, unknown = m?.fatKnown == false)
+        LhMacroCard("protein", c.protein, (m?.proteinG ?: 0).toDouble(), state.proteinTargetG.toDouble(), Modifier.weight(1f), metric = MetricKind.Protein, unknown = m?.proteinKnown == false)
     }
 }
 

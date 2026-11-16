@@ -10,7 +10,7 @@ interface BackupRepository {
     suspend fun replaceAll(snapshot: DataSnapshot)
     /** F-SET-6: wipe all tables + settings.clear() (the exercise library starts empty). */
     suspend fun clearAll()
-    suspend fun isEmpty(): Boolean      // no goals, plans, sessions, macros, body entries
+    suspend fun isEmpty(): Boolean      // no goals, plans, sessions, quick adds, body entries
 }
 
 class BackupRepositoryImpl(
@@ -25,7 +25,7 @@ class BackupRepositoryImpl(
             plans = db.planDao().getAll(), planExercises = db.planDao().getAllExercises(),
             exercises = db.exerciseDao().getAll(),
             sessions = db.sessionDao().getAll(), sets = db.sessionDao().getAllSets(),
-            macros = db.macroDao().getAll(), bodyEntries = db.bodyDao().getAll(),
+            quickAdds = db.quickAddDao().getAll(), bodyEntries = db.bodyDao().getAll(),
             achievements = db.achievementDao().getAll(),
             foods = db.foodDao().getAll(), foodEntries = db.foodEntryDao().getAll(),
         )
@@ -42,7 +42,7 @@ class BackupRepositoryImpl(
         db.goalDao().deleteAll()
         db.planDao().deleteAll()
         db.exerciseDao().deleteAll()
-        db.macroDao().deleteAll()
+        db.quickAddDao().deleteAll()
         db.bodyDao().deleteAll()
     }
 
@@ -56,7 +56,7 @@ class BackupRepositoryImpl(
             db.goalDao().insertAllLinks(snapshot.links)
             db.sessionDao().insertAll(snapshot.sessions)
             db.sessionDao().insertAllSets(snapshot.sets)
-            db.macroDao().insertAll(snapshot.macros)
+            db.quickAddDao().insertAll(snapshot.quickAdds)
             db.bodyDao().insertAll(snapshot.bodyEntries)
             // Legacy consistency rows (older exports) are dropped: the streak replaced them.
             db.achievementDao().insertAll(snapshot.achievements.filterNot { it.kind.isConsistency })
@@ -73,7 +73,7 @@ class BackupRepositoryImpl(
 
     override suspend fun isEmpty(): Boolean = db.withTransaction {
         db.goalDao().getAll().isEmpty() && db.planDao().getAll().isEmpty() && db.sessionDao().getAll().isEmpty() &&
-            db.macroDao().getAll().isEmpty() && db.bodyDao().getAll().isEmpty() &&
+            db.quickAddDao().getAll().isEmpty() && db.bodyDao().getAll().isEmpty() &&
             db.foodEntryDao().getAll().isEmpty()
     }
 }

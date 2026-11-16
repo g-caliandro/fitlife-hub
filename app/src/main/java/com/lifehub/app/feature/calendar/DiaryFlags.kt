@@ -35,7 +35,8 @@ object DiaryFlags {
     fun dayFlags(days: List<DayNutrition>, today: LocalDate, proteinTarget: Int, kcalTarget: Int?): Map<LocalDate, DayFlags> =
         days.asSequence().filter { it.date.isBefore(today) }.mapNotNull { n ->
             val f = DayFlags(
-                proteinMissed = proteinTarget > 0 && n.totals.proteinInt < proteinTarget,
+                // Only a fully known protein total can "miss": with n/a quick adds the sum is a lower bound.
+                proteinMissed = proteinTarget > 0 && n.totals.proteinComplete && n.totals.proteinInt < proteinTarget,
                 kcalExceeded = isCheatDay(n.totals.kcalInt, kcalTarget),
             )
             if (f.any) n.date to f else null

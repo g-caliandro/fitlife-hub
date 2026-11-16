@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -43,12 +42,9 @@ import com.lifehub.app.core.designsystem.components.LhButton
 import com.lifehub.app.core.designsystem.components.LhButtonSize
 import com.lifehub.app.core.designsystem.components.LhChip
 import com.lifehub.app.core.designsystem.components.LhConfirmDialog
-import com.lifehub.app.core.designsystem.components.LhListRow
 import com.lifehub.app.core.designsystem.components.LhSectionHeader
 import com.lifehub.app.core.designsystem.components.LhTopBar
 import com.lifehub.app.core.designsystem.fmtClock
-import com.lifehub.app.core.designsystem.fmtDate
-import com.lifehub.app.core.designsystem.fmtDuration
 import com.lifehub.app.core.time.TimeSource
 import com.lifehub.app.data.model.PlanWithExercises
 import com.lifehub.app.data.model.WorkoutSession
@@ -67,7 +63,10 @@ import kotlinx.coroutines.launch
 data class PlanGoalChip(val goalId: String, val name: String, val done: Int, val needed: Int?)
 
 data class PlanDetailState(
-    val plan: PlanWithExercises, val goals: List<PlanGoalChip>, val recent: List<WorkoutSession>, val todayIso: Int,
+    val plan: PlanWithExercises, val goals: List<PlanGoalChip>,
+    /** Every completed session of this plan (newest first), for the sessions calendar. */
+    val sessions: List<WorkoutSession>, val todayIso: Int,
+    val today: java.time.LocalDate = java.time.LocalDate.now(),
 )
 
 class PlanDetailViewModel(
@@ -84,7 +83,7 @@ class PlanDetailViewModel(
         val chips = gs.mapNotNull { g ->
             g.links.firstOrNull { it.planId == planId }?.let { PlanGoalChip(g.goal.id, g.goal.name, sessionsDone(g.goal, planId, done, today), it.sessionsNeeded) }
         }
-        PlanDetailState(p, chips, done.filter { it.planId == planId }.take(5), today.dayOfWeek.value)
+        PlanDetailState(p, chips, done.filter { it.planId == planId }, today.dayOfWeek.value, today)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun toggleArchive() = viewModelScope.launch { state.value?.let { plans.setArchived(planId, !it.plan.plan.isArchived) } }
@@ -161,16 +160,9 @@ fun PlanDetailScreen(
                 }
             }
             p.notes?.let { Spacer(Modifier.height(8.dp)); Text(it, style = LhType.body, color = c.mutedForeground) }
-            if (st.recent.isNotEmpty()) {
-                LhSectionHeader("Recent sessions")
-                com.lifehub.app.core.designsystem.components.LhCard(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                    st.recent.forEachIndexed { i, s ->
-                        LhListRow(
-                            fmtDate(s.date), subtitle = fmtDuration(s.durationSec), onClick = { onSession(s.id) }, showDivider = i < st.recent.lastIndex,
-                            trailing = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = c.mutedForeground) },
-                        )
-                    }
-                }
+            if (st.sessions.isNotEmpty()) {
+                LhSectionHeader("Sessions")
+                PlanSessionsCalendar(st.sessions, st.today, p.dayType, onSession)
             }
         }
     }

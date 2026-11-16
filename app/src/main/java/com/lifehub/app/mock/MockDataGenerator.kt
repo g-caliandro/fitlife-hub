@@ -154,8 +154,17 @@ object MockDataGenerator {
         }
 
         // Daily intake: food entries for most days (derived from the same protein/carbs/fat draws as before so the
-        // levels stay near the old totals), plus a few quick-add MacroDays (snack-only days and small add-ons).
-        val macros = mutableListOf<MacroDay>()
+        // levels stay near the old totals), plus a few quick adds: whole days logged as one named entry, and small add-ons (some with kcal only = macros n/a).
+        val quickAdds = mutableListOf<QuickAddEntry>()
+        fun quick(d: LocalDate, n: Int, name: String?, kcal: Int?, p: Int?, c: Int?, f: Int?, time: LocalTime) {
+            quickAdds += QuickAddEntry(uuid("qa-$d-$n"), d, name, kcal ?: autoKcal(p!!, c!!, f!!), p, c, f, kcal == null, at(d, time))
+        }
+        val addOns = listOf<(LocalDate) -> Unit>(
+            { d -> quick(d, 1, "Protein bar", null, 12, 25, 4, LocalTime.of(16, 30)) },
+            { d -> quick(d, 1, "Snack", 220, null, null, null, LocalTime.of(17, 0)) },
+            { d -> quick(d, 1, null, 140, null, null, null, LocalTime.of(22, 0)) },
+            { d -> quick(d, 1, "Cappuccino", 120, 6, null, null, LocalTime.of(10, 30)) },
+        )
         val foodEntries = mutableListOf<FoodEntry>()
         val fr = Random(4242)
         val foodCatalog = MockFoods.all
@@ -172,7 +181,7 @@ object MockDataGenerator {
             val kcal = if (manual) auto + r.nextInt(-80, 81) else auto
             val quickOnly = fr.nextDouble() < 0.08 && d !in proteinWeek && d != today.minusDays(1) && !cheat
             if (quickOnly) {
-                macros += MacroDay(d, protein, carbs, fat, kcal, !manual, at(d, LocalTime.of(21, 0)))
+                quick(d, 0, "Logged in another app", if (manual) kcal else null, protein, carbs, fat, LocalTime.of(21, 0))
                 continue
             }
             val items = MockFoods.dayMenu(fr, protein, carbs, fat, minProtein = if (d in proteinWeek) 150 else 0).toMutableList()
@@ -198,15 +207,22 @@ object MockDataGenerator {
                 t = t.plusMinutes(75)
                 if (t.hour > 21) t = LocalTime.of(21, 30)
             }
-            if (fr.nextDouble() < 0.15 || d == today) {
-                macros += MacroDay(d, 12, 25, 4, autoKcal(12, 25, 4), true, at(d, LocalTime.of(22, 0)))
+            if (d == today) {
+                // Added after the loop (also when today has no food yet).
+            } else if (d == today.minusDays(1)) {
+                quick(d, 1, "Pizza out", 1050, null, null, null, LocalTime.of(20, 30))
+            } else if (fr.nextDouble() < 0.15) {
+                addOns[Math.floorMod(d.toEpochDay(), addOns.size.toLong()).toInt()](d)
             }
         }
+        // Today shows both kinds in the Diary: a full quick add and one with kcal only (macros n/a).
+        quick(today, 1, "Protein bar", null, 12, 25, 4, LocalTime.of(16, 30))
+        quick(today, 2, "Snack", 220, null, null, null, LocalTime.of(17, 0))
         val foods = foodCatalog.values.sortedBy { it.id }.map { f ->
             val used = foodEntries.filter { it.foodId == f.id }.maxOfOrNull { it.createdAt }
             f.copy(lastUsedAt = used, favorite = f.id in MockFoods.favorites)
         }
-        val allDays = mergeNutrition(macros, foodEntries).asMacroDays()
+        val allDays = mergeNutrition(quickAdds, foodEntries).asMacroDays()
 
         val bodyDates = (0..SPAN).map { start.plusDays(it.toLong()) }
             .filter { it.dayOfWeek == DayOfWeek.SUNDAY || it == today.minusDays(1) }
@@ -226,7 +242,7 @@ object MockDataGenerator {
         return DataSnapshot(
             settings = settings,
             goals = goals, links = links, plans = plans, planExercises = planExercises,
-            exercises = exercises, sessions = sessions, sets = sets, macros = macros, bodyEntries = body,
+            exercises = exercises, sessions = sessions, sets = sets, quickAdds = quickAdds.sortedWith(compareBy({ it.date }, { it.createdAt }, { it.id })), bodyEntries = body,
             achievements = achievements, foods = foods,
             foodEntries = foodEntries.sortedWith(compareBy({ it.date }, { it.createdAt }, { it.id })),
         )

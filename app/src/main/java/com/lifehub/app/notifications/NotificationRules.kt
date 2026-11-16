@@ -86,7 +86,8 @@ object NotificationRules {
     }
 
     private fun avg(macros: Map<LocalDate, MacroDay>, from: LocalDate, to: LocalDate): Pair<Int, Double?> {
-        val vals = macros.filterKeys { it >= from && it <= to }.values.map { it.proteinG }
+        // Only days whose protein is fully known: n/a quick adds would make the sum a lower bound (false "low protein").
+        val vals = macros.filterKeys { it >= from && it <= to }.values.filter { it.proteinExact }.map { it.proteinG }
         return vals.size to if (vals.isEmpty()) null else vals.average()
     }
 

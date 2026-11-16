@@ -121,13 +121,51 @@ data class SessionSet(
     val restSeconds: Int,          // snapshot of rest for this exercise (90 if ad-hoc). Exported.
 )
 
-@Entity(tableName = "macro_days")
+/**
+ * Macro totals of one day (food entries + quick adds), shaped for protein/kcal consumers (insights, notifications,
+ * achievements, charts). Not a table (the v1-v6 `macro_days` table became [QuickAddEntry] rows in v7).
+ *
+ * Grams are the sum of the KNOWN values. [proteinKnown] = at least one item of the day has a known protein value
+ * (false: protein is n/a for the whole day, [proteinG] is 0). [proteinComplete] = every item's protein is known, so
+ * [proteinG] is the real total (false: it is only a lower bound). Same idea for carbs/fat.
+ */
 data class MacroDay(
-    @PrimaryKey val date: LocalDate,
+    val date: LocalDate,
     val proteinG: Int, val carbsG: Int, val fatG: Int, val kcal: Int,
+    val kcalIsAuto: Boolean = true,
+    val updatedAt: Instant = Instant.EPOCH,
+    val proteinKnown: Boolean = true,
+    val proteinComplete: Boolean = true,
+    val carbsKnown: Boolean = true,
+    val fatKnown: Boolean = true,
+    val carbsComplete: Boolean = true,
+    val fatComplete: Boolean = true,
+) {
+    /** Protein is the real total of the day (no n/a item): safe for averages and "missed" flags. */
+    val proteinExact get() = proteinKnown && proteinComplete
+    val carbsExact get() = carbsKnown && carbsComplete
+    val fatExact get() = fatKnown && fatComplete
+}
+
+/**
+ * One "Quick add" of a day (several per day): calories plus optional macros. A null macro means unknown ("n/a"),
+ * which is NOT zero. [name] is optional ("Pizza out"); the UI falls back to "Quick add".
+ * [kcalIsAuto] = kcal was computed as 4·P + 4·C + 9·F (only possible when all three macros are known).
+ */
+@Entity(tableName = "quick_add_entries", indices = [Index("date")])
+data class QuickAddEntry(
+    @PrimaryKey val id: String,
+    val date: LocalDate,
+    val name: String?,
+    val kcal: Int,
+    val proteinG: Int?,
+    val carbsG: Int?,
+    val fatG: Int?,
     val kcalIsAuto: Boolean,
-    val updatedAt: Instant,
-)
+    val createdAt: Instant,
+) {
+    val displayName: String get() = name?.trim()?.takeIf { it.isNotEmpty() } ?: "Quick add"
+}
 
 @Entity(tableName = "body_entries")
 data class BodyEntry(

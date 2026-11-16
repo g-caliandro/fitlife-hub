@@ -14,14 +14,14 @@ import java.time.LocalDate
 /** Snapshot of everything the notification rules look at. */
 internal suspend fun ruleInput(c: AppContainer, today: LocalDate): RuleInput {
     val snap = c.backup.snapshot()
-    val earliest = (snap.sessions.map { it.date } + snap.macros.map { it.date } + snap.foodEntries.map { it.date }).minOrNull()
+    val earliest = (snap.sessions.map { it.date } + snap.quickAdds.map { it.date } + snap.foodEntries.map { it.date }).minOrNull()
     return RuleInput(
         today = today, settings = c.settings.current(),
         lastNotified = NotifType.entries.associateWith { c.settings.lastNotified(it) },
         plans = snap.plans,
         completed = snap.sessions.filter { it.status == SessionStatus.COMPLETED },
         hasInProgressToday = snap.sessions.any { it.status == SessionStatus.IN_PROGRESS && it.date == today },
-        macros = mergeNutrition(snap.macros, snap.foodEntries).asMacroDays().filter { it.date >= today.minusDays(14) && it.date < today },
+        macros = mergeNutrition(snap.quickAdds, snap.foodEntries).asMacroDays().filter { it.date >= today.minusDays(14) && it.date < today },
         latestBodyDate = snap.bodyEntries.maxOfOrNull { it.date },
         earliestDataDate = earliest,
         achievements = snap.achievements,

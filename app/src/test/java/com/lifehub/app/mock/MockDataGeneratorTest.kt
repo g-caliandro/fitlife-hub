@@ -27,7 +27,12 @@ class MockDataGeneratorTest {
         assertTrue(s.sets.any { it.weightKg != null })
         val foodDays = s.foodEntries.map { it.date }.toSet()
         assertTrue("food days=${foodDays.size}", foodDays.size in 45..71)
-        assertTrue(s.macros.size in 5..30)     // quick adds only
+        assertTrue("quick adds=${s.quickAdds.size}", s.quickAdds.size in 5..40)
+        // Some quick adds have kcal only (macros n/a), some a name; today shows both kinds.
+        assertTrue(s.quickAdds.any { it.proteinG == null && it.carbsG == null && it.fatG == null })
+        assertTrue(s.quickAdds.any { it.name != null } && s.quickAdds.any { it.name == null })
+        val todayQuick = s.quickAdds.filter { it.date == today }
+        assertTrue(todayQuick.size >= 2 && todayQuick.any { it.proteinG == null } && todayQuick.any { it.proteinG != null })
         assertTrue(s.foods.size >= 10 && s.foodEntries.all { e -> s.foods.any { it.id == e.foodId } })
         assertTrue(s.bodyEntries.any { it.date == today.minusDays(1) })
         val exIds = s.exercises.map { it.id }.toSet()
@@ -74,7 +79,7 @@ class MockAchievementsTest {
 class MockNutritionTest {
     private val today = LocalDate.of(2026, 11, 12)
     private val s = MockDataGenerator.generate(today, ZoneId.of("Europe/Paris"))
-    private val days = com.lifehub.app.domain.mergeNutrition(s.macros, s.foodEntries)
+    private val days = com.lifehub.app.domain.mergeNutrition(s.quickAdds, s.foodEntries)
 
     @Test fun dailyLevelsStayRealistic() {
         val avgP = days.map { it.totals.proteinG }.average()
@@ -104,7 +109,7 @@ class MockDiaryDemoTest {
         val zone = ZoneId.of("Europe/Paris")
         for (today in listOf(LocalDate.of(2026, 11, 12), LocalDate.of(2026, 11, 13), LocalDate.of(2027, 3, 28))) {
             val s = MockDataGenerator.generate(today, zone)
-            val days = com.lifehub.app.domain.mergeNutrition(s.macros, s.foodEntries)
+            val days = com.lifehub.app.domain.mergeNutrition(s.quickAdds, s.foodEntries)
             val flags = com.lifehub.app.feature.calendar.DiaryFlags.dayFlags(days, today, s.settings.proteinTargetG, s.settings.kcalTarget)
             val trained = s.sessions.map { it.date }.toSet()
             val missed = com.lifehub.app.feature.calendar.DiaryFlags.missedTrainingDays(s.plans, trained, today, zone)

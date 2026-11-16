@@ -153,7 +153,7 @@ fun LhNavHost(
         composable(Routes.WORKOUT_LIVE) { LiveWorkoutRoute(nav, back) }
         composable(Routes.WORKOUT_LOG, arguments = listOf(longArg("date"))) { WorkoutLogRoute(back) }
         composable(Routes.SESSION, arguments = listOf(strArg("sessionId", nullable = false))) { SessionRoute(back) }
-        composable(Routes.MACRO_EDIT, arguments = listOf(longArg("date"))) { MacroEditRoute(back) }
+        composable(Routes.MACRO_EDIT, arguments = listOf(longArg("date"), strArg("id"))) { MacroEditRoute(back) }
         composable(Routes.FOOD_ADD, arguments = listOf(longArg("date"))) { AddFoodRoute(nav, back) }
         composable(Routes.FOOD_DETAIL, arguments = listOf(strArg("foodId", nullable = false), longArg("date"), strArg("entryId"))) { FoodDetailRoute(nav, back) }
         composable(Routes.FOOD_CUSTOM, arguments = listOf(strArg("foodId"), strArg("barcode"))) { CustomFoodRoute(back) }

@@ -29,8 +29,8 @@ import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.lifehub.app.MainActivity
 import com.lifehub.app.container
 import com.lifehub.app.data.model.SessionStatus
-import com.lifehub.app.data.model.HomePeriod
 import com.lifehub.app.domain.Periods
+import com.lifehub.app.feature.trends.TrendsPeriod
 import com.lifehub.app.core.designsystem.fmtRange
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -123,23 +123,23 @@ abstract class AppTourBase(private val prefix: String) {
         waitFor(hasTestTag("home-training"))
         shot("home-mock")
 
-        // ---- Trends: 1W, previous period, 2W ----
-        fun range(p: HomePeriod, k: Int) = fmtRange(Periods.period(today, p, k))
+        // ---- Trends: 2W (default), previous period, 4W ----
+        fun range(p: TrendsPeriod, k: Int) = fmtRange(Periods.period(today, p.days, k))
         tab("Trends")
         waitFor(hasTestTag("trends-list"))
-        waitText(range(HomePeriod.ONE_WEEK, 0))
-        shot("trends-1w-current")
-        clickDesc("Previous period")
-        waitText(range(HomePeriod.ONE_WEEK, 1))
-        shot("trends-1w-previous")
-        click("2W")
-        waitText(range(HomePeriod.TWO_WEEKS, 1))
-        shot("trends-2w-previous")
-        clickDesc("Next period")
-        waitText(range(HomePeriod.TWO_WEEKS, 0))
+        waitText(range(TrendsPeriod.TWO_WEEKS, 0))
         shot("trends-2w-current")
-        click("1W")
-        waitText(range(HomePeriod.ONE_WEEK, 0))
+        clickDesc("Previous period")
+        waitText(range(TrendsPeriod.TWO_WEEKS, 1))
+        shot("trends-2w-previous")
+        click("4W")
+        waitText(range(TrendsPeriod.FOUR_WEEKS, 1))
+        shot("trends-4w-previous")
+        clickDesc("Next period")
+        waitText(range(TrendsPeriod.FOUR_WEEKS, 0))
+        shot("trends-4w-current")
+        click("2W")
+        waitText(range(TrendsPeriod.TWO_WEEKS, 0))
 
         // ---- Calendar: previous month, tap a day with a workout -> day summary ----
         tab("Diary")
@@ -254,8 +254,8 @@ abstract class AppTourBase(private val prefix: String) {
         rule.onNodeWithTag("set-3-0", useUnmergedTree = true).performClick()
         title("Explosive pull-up")
 
-        // MAX set: the reps ruler is on screen; set 25 and log with Done.
-        rule.onNodeWithTag("ruler-Reps").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(25f) }
+        // MAX set: the reps picker is on screen; set 25 and log with Done.
+        rule.onNodeWithTag("picker-Reps").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(25f) }
         shot("live-max-input")
         click("Done")
         waitText("New PR", substring = true)
@@ -266,8 +266,8 @@ abstract class AppTourBase(private val prefix: String) {
 
         // SECONDS set: Start hold -> running countdown -> Stop & Done.
         title("Tuck front lever")
-        waitText("Start hold timer")
-        click("Start hold timer")
+        waitText("Start hold")
+        click("Start hold")
         waitText("Stop & Done")
         shot("live-hold-running")
         click("Stop & Done")
@@ -317,9 +317,11 @@ abstract class AppTourBase(private val prefix: String) {
         snackbarTimeout()
 
         // ---- Macro entry (kcal auto) ----
-        // (from the calendar's inline day detail: today is still selected; mock data has macros today -> "Edit")
+        // (from the calendar's inline day detail: today is still selected; "Quick add" always adds a new entry)
+        val quickBefore = runBlocking { c.quickAdds.getDay(today) }.size
         tapRow("macros-row")
         waitFor(hasTestTag("macro-protein"))
+        field("macro-name").performTextReplacement("Shake")
         field("macro-protein").performTextReplacement("160")
         field("macro-carbs").performTextReplacement("250")
         field("macro-fat").performTextReplacement("70")
@@ -328,7 +330,9 @@ abstract class AppTourBase(private val prefix: String) {
         shot("macro-entry")
         click("Save")
         waitText("Workouts")
-        val m = runBlocking { c.macros.get(today) }!!
+        val quickDay = runBlocking { c.quickAdds.getDay(today) }
+        assertEquals(quickBefore + 1, quickDay.size)
+        val m = quickDay.single { it.name == "Shake" }
         assertEquals(160, m.proteinG)
         assertEquals(4 * 160 + 4 * 250 + 9 * 70, m.kcal)
         assertTrue(m.kcalIsAuto)

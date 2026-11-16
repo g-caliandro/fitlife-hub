@@ -6,7 +6,6 @@ import com.lifehub.app.data.db.LifeHubDatabase
 import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.feature.body.restoreBody
 import com.lifehub.app.feature.nutrition.copyLabel
-import com.lifehub.app.feature.nutrition.restore
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -20,34 +19,36 @@ import java.time.LocalDate
 @RunWith(RobolectricTestRunner::class)
 class FormUndoTest {
     private lateinit var db: LifeHubDatabase
-    private lateinit var macros: MacroRepositoryImpl
+    private lateinit var macros: QuickAddRepositoryImpl
     private lateinit var body: BodyRepositoryImpl
     private val now = Instant.parse("2026-11-12T10:00:00Z")
     private val d = LocalDate.of(2026, 11, 12)
 
     @Before fun setUp() {
         db = LifeHubDatabase.inMemory(ApplicationProvider.getApplicationContext<Context>())
-        macros = MacroRepositoryImpl(db); body = BodyRepositoryImpl(db)
+        macros = QuickAddRepositoryImpl(db); body = BodyRepositoryImpl(db)
     }
     @After fun tearDown() { db.close() }
 
     @Test fun latestBeforePicksMostRecentEarlierDay() = runBlocking {
-        macros.upsert(d.minusDays(5), 100, 200, 50, null, now)
-        macros.upsert(d.minusDays(2), 150, 250, 60, 2500, now)
-        macros.upsert(d, 1, 1, 1, null, now)
+        macros.save(null, d.minusDays(5), null, null, 100, 200, 50, now)
+        macros.save(null, d.minusDays(2), "Lunch", 2500, 150, null, null, now)
+        macros.save(null, d, null, 300, null, null, null, now)
         assertEquals(d.minusDays(2), macros.latestBefore(d)!!.date)
         assertNull(macros.latestBefore(d.minusDays(5)))
     }
 
-    @Test fun macroUndoRestoresPreviousOrDeletes() = runBlocking {
-        macros.upsert(d, 100, 200, 50, null, now)
-        val prev = macros.get(d)
-        macros.upsert(d, 150, 250, 60, 3000, now)
-        macros.restore(d, prev, now)
-        val r = macros.get(d)!!
-        assertEquals(100, r.proteinG); assertTrue(r.kcalIsAuto)
-        macros.restore(d, null, now)
-        assertNull(macros.get(d))
+    @Test fun quickAddUndoRestoresPreviousOrDeletes() = runBlocking {
+        val first = macros.save(null, d, "Snack", null, 100, 200, 50, now)
+        val prev = macros.get(first.id)!!
+        macros.save(first.id, d, "Snack 2", 3000, null, null, null, now.plusSeconds(5))
+        assertEquals(1, macros.getDay(d).size)                      // edit, not a new row
+        assertEquals(now, macros.get(first.id)!!.createdAt)         // keeps its place in the list
+        macros.restore(prev)
+        val r = macros.get(first.id)!!
+        assertEquals(100, r.proteinG); assertTrue(r.kcalIsAuto); assertEquals("Snack", r.name)
+        macros.delete(first.id)
+        assertNull(macros.get(first.id))
     }
 
     @Test fun bodyUndo() = runBlocking {

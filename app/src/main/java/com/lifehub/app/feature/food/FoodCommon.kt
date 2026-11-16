@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Box
@@ -91,6 +92,16 @@ fun FoodEntryRow(entry: FoodEntry, onClick: () -> Unit, modifier: Modifier = Mod
     LhListItem(
         entry.name, modifier, subtitle = "${fmtGrams(entry.grams)} g · P ${fmtMacro(entry.proteinG)} · C ${fmtMacro(entry.carbsG)} · F ${fmtMacro(entry.fatG)}",
         leading = { FoodThumb(entry.name, entry.imageUrl) }, trailingText = "${fmtInt(entry.kcal.roundToInt())} kcal", onClick = onClick,
+    )
+}
+
+/** A quick add in the Diary food list: its name (or "Quick add"), macros with "n/a" for unknown ones, kcal. */
+@Composable
+fun QuickAddRow(entry: com.lifehub.app.data.model.QuickAddEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    LhListItem(
+        entry.displayName, modifier, subtitle = com.lifehub.app.feature.nutrition.macroSummary(entry.proteinG, entry.carbsG, entry.fatG),
+        icon = Icons.Outlined.Bolt, iconTint = LhTheme.colors.protein,
+        trailingText = "${fmtInt(entry.kcal)} kcal", onClick = onClick,
     )
 }
 

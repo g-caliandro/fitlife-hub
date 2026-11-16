@@ -43,7 +43,7 @@ class ExportImportTest {
 
     @Test fun jsonHeaderAndKeyOrder() {
         val text = JsonCodec.encode(snap, at, "0.1.0")
-        val keys = listOf("schemaVersion", "exportedAt", "app", "readme", "units", "settings", "goals", "plans", "exercises", "sessions", "macros", "bodyEntries", "achievements", "foods", "foodEntries")
+        val keys = listOf("schemaVersion", "exportedAt", "app", "readme", "units", "settings", "goals", "plans", "exercises", "sessions", "quickAdds", "bodyEntries", "achievements", "foods", "foodEntries")
         val idx = keys.map { text.indexOf("\n    \"$it\"") }
         assertTrue(idx.all { it >= 0 }); assertEquals(idx.sorted(), idx)
         assertTrue(text.contains("\"fatPct\""))
@@ -59,7 +59,7 @@ class ExportImportTest {
             goals = goals.sortedBy { it.id }, links = links.sortedBy { it.goalId + it.planId }, plans = plans.sortedBy { it.id },
             planExercises = planExercises.sortedBy { it.id }, exercises = exercises.sortedBy { it.id },
             sessions = sessions.sortedBy { it.id }, sets = sets.sortedBy { it.id },
-            macros = macros.sortedBy { it.date }, bodyEntries = bodyEntries.sortedBy { it.date }, achievements = achievements.sortedBy { it.id },
+            quickAdds = quickAdds.sortedBy { it.id }, bodyEntries = bodyEntries.sortedBy { it.date }, achievements = achievements.sortedBy { it.id },
             foods = foods.sortedBy { it.id }, foodEntries = foodEntries.sortedBy { it.id },
         )
         assertEquals(s1.norm(), s2.norm())
@@ -95,7 +95,7 @@ class ExportImportTest {
     }
 
     @Test fun rejectsBadSchemaAndGarbage() {
-        val bad = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 6", "\"schemaVersion\": 99")
+        val bad = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 7", "\"schemaVersion\": 99")
         assertThrows(ImportException::class.java) { JsonCodec.decode(bad) }
         assertThrows(ImportException::class.java) { JsonCodec.decode("not json") }
         assertThrows(ImportException::class.java) { JsonCodec.decode("{\"foo\":1}") }
@@ -105,11 +105,33 @@ class ExportImportTest {
         val minimal = """{"schemaVersion":1,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r",
             "macros":[{"date":"2026-11-01","proteinG":100,"carbsG":200,"fatG":60,"kcal":1740,"updatedAt":0}]}"""
         val s = JsonCodec.decode(minimal)
-        assertEquals(1, s.macros.size); assertTrue(s.macros[0].kcalIsAuto)
+        assertEquals(1, s.quickAdds.size)
+        s.quickAdds[0].let {
+            assertTrue(it.kcalIsAuto); assertNull(it.name); assertEquals(100, it.proteinG); assertEquals(1740, it.kcal)
+            assertEquals("macro-${java.time.LocalDate.parse("2026-11-01").toEpochDay()}", it.id)   // same id scheme as MIGRATION_6_7
+        }
+    }
+
+    @Test fun v6MacrosImportAsQuickAddsAndV7RoundTripsNulls() {
+        val v6 = """{"schemaVersion":6,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r",
+            "macros":[{"date":"2026-11-01","proteinG":100,"carbsG":200,"fatG":60,"kcal":1800,"kcalIsAuto":false,"updatedAt":5},
+                      {"date":"2026-11-02","proteinG":90,"carbsG":150,"fatG":50,"kcal":1410,"kcalIsAuto":true,"updatedAt":6}]}"""
+        val s = JsonCodec.decode(v6)
+        assertEquals(listOf(1800, 1410), s.quickAdds.map { it.kcal })
+        assertEquals(listOf(false, true), s.quickAdds.map { it.kcalIsAuto })
+        // v7: nulls survive, the legacy "macros" key is no longer written.
+        val withNulls = s.copy(quickAdds = s.quickAdds + com.lifehub.app.data.model.QuickAddEntry(
+            "x", java.time.LocalDate.parse("2026-11-02"), "Pizza out", 1050, null, null, null, false, java.time.Instant.ofEpochMilli(7)))
+        val text = JsonCodec.encode(withNulls, at, "x")
+        assertTrue(text.contains("\"schemaVersion\": 7")); assertFalse(text.contains("\"macros\": ["))
+        assertTrue(text.contains("\"quickAdds\""))
+        val back = JsonCodec.decode(text).quickAdds.single { it.id == "x" }
+        assertEquals("Pizza out", back.name); assertNull(back.proteinG); assertNull(back.carbsG); assertNull(back.fatG); assertEquals(1050, back.kcal)
+        assertEquals(3, JsonCodec.decode(text).quickAdds.size)
     }
 
     @Test fun v1ImportStillWorks() {
-        val v1 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 6", "\"schemaVersion\": 1")
+        val v1 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 7", "\"schemaVersion\": 1")
         val s = JsonCodec.decode(v1)
         assertEquals(snap.achievements.size, s.achievements.size)
         val minimal = """{"schemaVersion":1,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r"}"""
@@ -117,9 +139,9 @@ class ExportImportTest {
     }
 
     @Test fun v3ImportHasNoFood() {
-        val v3 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 6", "\"schemaVersion\": 3")
+        val v3 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 7", "\"schemaVersion\": 3")
         val s = JsonCodec.decode(v3)   // unknown/extra keys are ignored; older files simply lack foods
-        assertEquals(snap.macros.size, s.macros.size)
+        assertEquals(snap.quickAdds.size, s.quickAdds.size)
         val old = """{"schemaVersion":3,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r"}"""
         val o = JsonCodec.decode(old)
         assertTrue(o.foods.isEmpty() && o.foodEntries.isEmpty()); assertNull(o.settings.kcalTarget)
@@ -154,9 +176,11 @@ class ExportImportTest {
             generateSequence { z.nextEntry }.forEach { names[it.name] = z.readBytes().toString(Charsets.UTF_8) }
         }
         assertEquals(setOf("goals.csv", "goal_plan_links.csv", "plans.csv", "plan_exercises.csv", "exercises.csv", "sessions.csv",
-            "session_sets.csv", "achievements.csv", "foods.csv", "food_entries.csv", "macros.csv", "body_entries.csv", "settings.csv", "README.txt"), names.keys)
-        assertTrue(names["macros.csv"]!!.startsWith("date,proteinG,carbsG,fatG,kcal,kcalIsAuto\n"))
-        assertEquals(snap.macros.size + 1, names["macros.csv"]!!.trimEnd().lines().size)
+            "session_sets.csv", "achievements.csv", "foods.csv", "food_entries.csv", "quick_adds.csv", "body_entries.csv", "settings.csv", "README.txt"), names.keys)
+        assertTrue(names["quick_adds.csv"]!!.startsWith("id,date,name,kcal,proteinG,carbsG,fatG,kcalIsAuto,createdAt\n"))
+        assertEquals(snap.quickAdds.size + 1, names["quick_adds.csv"]!!.trimEnd().lines().size)
+        // Unknown macros are empty cells (not 0).
+        assertTrue(names["quick_adds.csv"]!!.lines().any { it.contains(",Snack,220,,,,false,") })
         assertTrue(names["food_entries.csv"]!!.startsWith("id,date,foodId,name,brand,grams,kcal,proteinG,carbsG,fatG,createdAt\n"))
         assertEquals(snap.foodEntries.size + 1, names["food_entries.csv"]!!.trimEnd().lines().size)
         assertEquals(snap.foods.size + 1, names["foods.csv"]!!.trimEnd().lines().size)

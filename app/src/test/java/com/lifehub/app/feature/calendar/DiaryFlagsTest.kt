@@ -13,7 +13,7 @@ import java.time.ZoneOffset
 
 class DiaryFlagsTest {
     private val today = LocalDate.of(2026, 11, 12) // Thursday
-    private fun day(d: LocalDate, p: Double, k: Double) = DayNutrition(d, Totals(kcal = k, proteinG = p), emptyList(), null)
+    private fun day(d: LocalDate, p: Double, k: Double) = DayNutrition(d, Totals(kcal = k, proteinG = p), emptyList())
 
     @Test fun flagsOnlyFinishedLoggedDays() {
         val f = DiaryFlags.dayFlags(

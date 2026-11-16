@@ -1,9 +1,12 @@
 package com.lifehub.app.export
 
 import com.lifehub.app.data.model.*
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
-/** Export schema (spec 6.1). v6: exercise `category` is PULL|PUSH|CORE|LEGS (older ISOMETRIC/ACCESSORY are remapped on import), no built-in exercises. v5 adds imageUrl/iconKey; v4 adds foods, foodEntries and kcal/carbs/fat targets; v3 adds plans.dayType; v2 adds `achievements` and settings.notifyAchievements; v1 files still import. Property order = JSON key order. */
+/** Export schema (spec 6.1). v7: `quickAdds` (several per day, optional name, nullable proteinG/carbsG/fatG = unknown) replace the per-day `macros` (still read on import, never written). v6: exercise `category` is PULL|PUSH|CORE|LEGS (older ISOMETRIC/ACCESSORY are remapped on import), no built-in exercises. v5 adds imageUrl/iconKey; v4 adds foods, foodEntries and kcal/carbs/fat targets; v3 adds plans.dayType; v2 adds `achievements` and settings.notifyAchievements; v1 files still import. Property order = JSON key order. */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ExportV1(
     val schemaVersion: Int = 4,
@@ -16,7 +19,9 @@ data class ExportV1(
     val plans: List<PlanDto> = emptyList(),
     val exercises: List<ExerciseDto> = emptyList(),
     val sessions: List<SessionDto> = emptyList(),
-    val macros: List<MacroDto> = emptyList(),
+    /** Legacy (schemaVersion <= 6): one quick add per date. Import only; not written any more. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val macros: List<MacroDto> = emptyList(),
+    val quickAdds: List<QuickAddDto> = emptyList(),
     val bodyEntries: List<BodyDto> = emptyList(),
     val achievements: List<AchievementDto> = emptyList(),
     val foods: List<FoodDto> = emptyList(),
@@ -100,6 +105,14 @@ data class SessionDto(
 data class MacroDto(
     val date: String, val proteinG: Int, val carbsG: Int, val fatG: Int, val kcal: Int,
     val kcalIsAuto: Boolean = true, val updatedAt: Long,
+)
+
+/** v7 quick add: kcal required, macros null = unknown (n/a, not zero), optional name. */
+@Serializable
+data class QuickAddDto(
+    val id: String, val date: String, val name: String? = null, val kcal: Int,
+    val proteinG: Int? = null, val carbsG: Int? = null, val fatG: Int? = null,
+    val kcalIsAuto: Boolean = false, val createdAt: Long,
 )
 
 @Serializable

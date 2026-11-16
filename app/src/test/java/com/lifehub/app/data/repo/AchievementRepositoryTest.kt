@@ -96,7 +96,7 @@ class AchievementRepositoryTest {
 
     @Test fun detectPeriodsStoresNoConsistencyAndPurgesLegacyRows() = runBlocking {
         val mon = LocalDate.of(2026, 11, 2)
-        db.macroDao().insertAll((0..6).map { MacroDay(mon.plusDays(it.toLong()), 160, 200, 70, 2000, true, now) })
+        db.quickAddDao().insertAll((0..6).map { QuickAddEntry("q$it", mon.plusDays(it.toLong()), null, 2000, 160, 200, 70, false, now) })
         db.achievementDao().insertAll(listOf(Achievement("old", AchievementKind.PROTEIN_WEEK, "Protein target hit all week", null, 150.0, "g",
             null, null, null, mon.plusDays(6), now, "PROTEIN_WEEK:2026-W45")))
         assertTrue(repo.detectPeriods(today, 150, ZoneOffset.UTC, now).isEmpty())
