@@ -27,7 +27,7 @@ object Channels {
                 ch(STREAK, "Streak reminders", NotificationManager.IMPORTANCE_DEFAULT),
                 ch(REST_TIMER, "Rest timer", NotificationManager.IMPORTANCE_LOW),
                 ch(REST_DONE, "Rest over", NotificationManager.IMPORTANCE_HIGH),
-            )
+            ) + com.lifehub.app.copilot.notify.CopilotChannel.entries.map { ch(it.id, it.title, NotificationManager.IMPORTANCE_DEFAULT) }
         )
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -84,11 +85,13 @@ fun HomeRoute(onNavigate: (String) -> Unit) {
     val c = LocalContext.current.container
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(c))
     val state by vm.state.collectAsStateWithLifecycle()
-    HomeScreen(state, onNavigate, onStreakSeen = vm::streakCelebrated)
+    // Open copilot requests needing an answer (PendingInputStore, independent from the chat).
+    val openRequests by c.pendingInputs.observeOpenCount().collectAsStateWithLifecycle(0)
+    HomeScreen(state, onNavigate, onStreakSeen = vm::streakCelebrated, copilotBadge = openRequests)
 }
 
 @Composable
-fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakSeen: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakSeen: () -> Unit = {}, modifier: Modifier = Modifier, copilotBadge: Int = 0) {
     val c = LhTheme.colors
     val nav = onNavigate
     // Streak sheet opened from the badge: local UI state only, never marks the daily auto-celebration as seen.
@@ -98,6 +101,7 @@ fun HomeScreen(state: HomeUiState?, onNavigate: (String) -> Unit = {}, onStreakS
         LhScreenHeader(stringResource(R.string.home_title), Icons.Filled.Home, actions = {
             // Duolingo-style training streak (replaces the consistency achievements); tap -> streak sheet + week strip.
             if (state != null) StreakBadge(state.streakDays, { streakOpen = true })
+            CopilotAction(badgeCount = copilotBadge, onClick = { nav(Routes.copilot()) })
             LhIconAction(Icons.Outlined.AccountCircle, stringResource(R.string.home_profile), { nav(Routes.YOU) }, Modifier.testTag("home-profile"))
         })
         if (state == null) return@Column
@@ -283,5 +287,24 @@ private fun TomorrowRow(plans: List<TodayPlan>, nav: (String) -> Unit) {
             stringResource(R.string.home_tomorrow) + " · " + plans.joinToString(", ") { it.name },
             style = LhType.captionMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * Copilot entry in the Home header (owner decision 6). [badgeCount] = open copilot requests needing an answer
+ * (pending inputs); a dot with the count when > 0.
+ */
+@Composable
+private fun CopilotAction(badgeCount: Int, onClick: () -> Unit) {
+    val c = LhTheme.colors
+    androidx.compose.foundation.layout.Box {
+        LhIconAction(Icons.Outlined.AutoAwesome, "Copilot", onClick, Modifier.testTag("home-copilot"))
+        if (badgeCount > 0) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(16.dp)
+                    .background(c.destructive, com.lifehub.app.core.designsystem.LhRadius.fullShape),
+                contentAlignment = Alignment.Center,
+            ) { Text(if (badgeCount > 9) "9+" else "$badgeCount", style = LhType.labelSmall, color = c.destructiveForeground) }
+        }
     }
 }

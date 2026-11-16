@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.ImportExport
@@ -117,6 +118,7 @@ fun YouScreen(state: YouState, onNavigate: (String) -> Unit, today: java.time.Lo
                 Group("Settings")
                 LhGroupCard {
                     Row(Icons.Outlined.Notifications, "Notifications", if (state.remindersOn) "Reminders on" else "Reminders off", { onNavigate(Routes.SETTINGS_NOTIFICATIONS) }, true)
+                    Row(Icons.Outlined.AutoAwesome, "Copilot", "AI provider and API keys", { onNavigate(Routes.SETTINGS_COPILOT) }, true)
                     Row(Icons.Outlined.ImportExport, "Data", "Export, import, mock", { onNavigate(Routes.SETTINGS_DATA) }, true)
                     Row(Icons.Outlined.Info, "About", state.version, { onNavigate(Routes.ABOUT) }, false)
                 }

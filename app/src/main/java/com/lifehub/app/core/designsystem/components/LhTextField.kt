@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lifehub.app.core.designsystem.LhRadius
@@ -53,6 +54,7 @@ internal fun LhFieldBase(
     readOnly: Boolean = false,
     onClickOverride: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     val c = LhTheme.colors
     val src = remember { MutableInteractionSource() }
@@ -84,7 +86,7 @@ internal fun LhFieldBase(
                         textStyle = LhType.bodyLarge.copy(color = if (enabled) c.foreground else c.mutedForeground, textAlign = textAlign),
                         cursorBrush = SolidColor(c.foreground), singleLine = singleLine,
                         minLines = minLines, keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
-                        interactionSource = src,
+                        interactionSource = src, visualTransformation = visualTransformation,
                     )
                 }
                 if (suffix != null) {
@@ -115,6 +117,7 @@ fun LhTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     enabled: Boolean = true,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     LhFieldBase(
         value = value,
@@ -122,6 +125,7 @@ fun LhTextField(
         modifier = modifier, label = label, placeholder = placeholder, error = error, supportingText = supportingText,
         singleLine = singleLine, minLines = if (singleLine) 1 else minLines,
         keyboardOptions = keyboardOptions, keyboardActions = keyboardActions, enabled = enabled,
+        visualTransformation = visualTransformation,
     )
 }
 

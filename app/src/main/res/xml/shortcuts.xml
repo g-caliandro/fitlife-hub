@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static shortcut for the Samsung side key ("in-app shortcuts", research §7.6) and the launcher long-press menu. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="talk_to_copilot"
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_talk"
+        android:shortcutShortLabel="@string/copilot_talk_short"
+        android:shortcutLongLabel="@string/copilot_talk_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lifehub.app"
+            android:targetClass="com.lifehub.app.feature.capture.QuickCaptureActivity" />
+    </shortcut>
+</shortcuts>

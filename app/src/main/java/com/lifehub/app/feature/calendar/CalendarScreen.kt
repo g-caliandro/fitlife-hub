@@ -124,7 +124,17 @@ fun CalendarRoute(onNavigate: (String) -> Unit) {
     val c = LocalContext.current.container
     val vm: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(c))
     val state by vm.state.collectAsState()
-    CalendarScreen(state, vm::select, onNavigate, onDeleteFood = vm::deleteFood, onCopyYesterday = vm::copyYesterday, onClearDay = vm::clearDay, onDeleteQuickAdd = vm::deleteQuickAdd)
+    val pager = rememberPagerState(initialPage = START) { PAGES }
+    // "Open in diary" from a copilot card: select that day and show its month.
+    val jump by com.lifehub.app.navigation.DiaryJump.date.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(jump) {
+        val d = jump ?: return@LaunchedEffect
+        com.lifehub.app.navigation.DiaryJump.consume()
+        vm.select(d)
+        val months = java.time.temporal.ChronoUnit.MONTHS.between(YearMonth.from(state.today), YearMonth.from(d)).toInt()
+        pager.scrollToPage((START + months).coerceIn(0, PAGES - 1))
+    }
+    CalendarScreen(state, vm::select, onNavigate, pagerState = pager, onDeleteFood = vm::deleteFood, onCopyYesterday = vm::copyYesterday, onClearDay = vm::clearDay, onDeleteQuickAdd = vm::deleteQuickAdd)
 }
 
 @Composable

@@ -1,0 +1,71 @@
+package com.lifehub.app.copilot.capture
+
+import com.lifehub.app.data.db.LifeHubDatabase
+import com.lifehub.app.data.model.Capture
+import com.lifehub.app.data.model.CaptureStatus
+import com.lifehub.app.data.model.ChatOrigin
+import kotlinx.coroutines.flow.Flow
+import java.time.Instant
+import java.time.ZoneId
+import java.util.UUID
+
+/** Captures (design doc "CaptureStore"): text/audio, state, outcome; the records each capture wrote are in capture_writes. */
+interface CaptureStore {
+    /** [audioPath]: a dictated capture (phase 4) whose text comes from the transcriber; [text] is then null. */
+    suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String? = null): Capture
+    suspend fun get(id: String): Capture?
+    fun observe(id: String): Flow<Capture?>
+    fun observeByThread(threadId: String): Flow<List<Capture>>
+    suspend fun byStatus(statuses: List<CaptureStatus>): List<Capture>
+    fun observeByStatus(statuses: List<CaptureStatus>): Flow<List<Capture>>
+    /** Stores the transcript of a dictated capture (set once; later calls are ignored). */
+    suspend fun setTranscript(id: String, transcript: String, now: Instant)
+    /** Clears [Capture.audioPath] after the audio file was deleted. */
+    suspend fun clearAudio(id: String, now: Instant)
+    /** Moves [id] to [to] if [CaptureStateMachine] allows it, else throws [IllegalTransitionException]. */
+    suspend fun move(id: String, to: CaptureStatus, now: Instant, outcome: String? = null, errorCode: String? = null, errorMessage: String? = null): Capture
+    suspend fun setMealAt(id: String, mealAt: Instant, now: Instant)
+}
+
+class CaptureStoreImpl(db: LifeHubDatabase) : CaptureStore {
+    private val dao = db.captureDao()
+
+    override suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String?): Capture {
+        val c = Capture(UUID.randomUUID().toString(), threadId, origin, CaptureStatus.RECORDED, text, audioPath = audioPath, zoneId = zone.id, createdAt = now, updatedAt = now)
+        dao.upsert(c)
+        return c
+    }
+
+    override suspend fun get(id: String) = dao.get(id)
+    override fun observe(id: String) = dao.observe(id)
+    override fun observeByThread(threadId: String) = dao.observeByThread(threadId)
+    override suspend fun byStatus(statuses: List<CaptureStatus>) = dao.byStatus(statuses)
+    override fun observeByStatus(statuses: List<CaptureStatus>) = dao.observeByStatus(statuses)
+
+    override suspend fun setTranscript(id: String, transcript: String, now: Instant) {
+        dao.get(id)?.takeIf { it.transcript == null }?.let { dao.upsert(it.copy(transcript = transcript, updatedAt = now)) }
+    }
+
+    override suspend fun clearAudio(id: String, now: Instant) {
+        dao.get(id)?.takeIf { it.audioPath != null }?.let { dao.upsert(it.copy(audioPath = null, updatedAt = now)) }
+    }
+
+    override suspend fun move(id: String, to: CaptureStatus, now: Instant, outcome: String?, errorCode: String?, errorMessage: String?): Capture {
+        val c = dao.get(id) ?: throw IllegalTransitionException("Unknown capture $id")
+        if (c.status == to) return c
+        if (!CaptureStateMachine.canMove(c.status, to)) throw IllegalTransitionException("Capture ${c.status} -> $to not allowed")
+        val next = c.copy(
+            status = to, updatedAt = now,
+            outcome = outcome ?: c.outcome,
+            errorCode = if (to == CaptureStatus.FAILED) errorCode else null,
+            errorMessage = if (to == CaptureStatus.FAILED) errorMessage else null,
+            attempts = if (to == CaptureStatus.PROCESSING) c.attempts + 1 else c.attempts,
+        )
+        dao.upsert(next)
+        return next
+    }
+
+    override suspend fun setMealAt(id: String, mealAt: Instant, now: Instant) {
+        dao.get(id)?.takeIf { it.mealAt == null }?.let { dao.upsert(it.copy(mealAt = mealAt, updatedAt = now)) }
+    }
+}

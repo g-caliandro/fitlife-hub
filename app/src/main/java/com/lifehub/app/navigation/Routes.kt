@@ -37,6 +37,11 @@ object Routes {
     const val TARGETS = "settings/targets"
     const val SETTINGS_NOTIFICATIONS = "settings/notifications"
     const val SETTINGS_DATA = "settings/data"
+    const val SETTINGS_COPILOT = "settings/copilot"
+    const val SETTINGS_COPILOT_MEASURES = "settings/copilot/measures"
+    /** Copilot chat; no threadId = the most recent chat thread (a new one is created on the first message). */
+    const val COPILOT = "copilot?threadId={threadId}"
+    const val COPILOT_INBOX = "copilot/inbox"
     const val ABOUT = "about"
 
     val TAB_ROOTS = listOf(HOME_ROOT, CALENDAR, TRENDS, PLANS)
@@ -70,6 +75,7 @@ object Routes {
     }
     fun foodScan(date: LocalDate) = "food/scan?date=${date.toEpochDay()}"
     fun bodyEdit(date: LocalDate) = "body/edit?date=${date.toEpochDay()}"
+    fun copilot(threadId: String? = null) = if (threadId == null) "copilot" else "copilot?threadId=$threadId"
 
     /** onNavigate prefix conventions handled by LhNavHost. */
     const val BACK = "back"

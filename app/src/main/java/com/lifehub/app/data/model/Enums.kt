@@ -42,4 +42,13 @@ enum class AchievementKind {
     val isConsistency: Boolean get() = isPeriod || this == SESSION_MILESTONE
 }
 
-enum class FoodSource { CUSTOM, OFF }
+/** CUSTOM / OFF (cached Open Food Facts product); v9: BASE = copied from the base food table, ESTIMATE = accepted copilot estimate. */
+enum class FoodSource { CUSTOM, OFF, BASE, ESTIMATE }
+
+/** Raw vs cooked, where it matters for the values per 100 g (copilot: raw is the default). */
+enum class FoodState { RAW, COOKED }
+
+/** Where the values of a copilot-logged entry came from (design doc §6 steps). */
+enum class EntrySource(val wire: String) {
+    HISTORY("history"), BASE_TABLE("base_table"), OPEN_FOOD_FACTS("open_food_facts"), LLM_ESTIMATE("llm_estimate");
+}

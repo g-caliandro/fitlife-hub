@@ -174,6 +174,7 @@ fun AppScaffold(pendingRoute: StateFlow<String?>, onRouteConsumed: () -> Unit) {
                 onQuickMacros = { showAdd = false; navController.lhNavigate(Routes.macroEdit(date)) },
                 onStartWorkout = { showAdd = false; navController.lhNavigate(if (active != null) Routes.WORKOUT_LIVE else Routes.workoutStart()) },
                 onLogWeight = { showAdd = false; navController.lhNavigate(Routes.bodyEdit(container.time.today())) },
+                onAskCopilot = { showAdd = false; navController.lhNavigate(Routes.copilot()) },
             )
         }
     }

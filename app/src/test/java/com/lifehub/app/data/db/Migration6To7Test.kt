@@ -62,7 +62,7 @@ class Migration6To7Test {
             execSQL("INSERT INTO body_entries (date, weightKg, muscleKg, fatKg, updatedAt) VALUES (${d1.toEpochDay()}, 77.0, NULL, NULL, 0)")
         }
         val db = Room.databaseBuilder(ctx, LifeHubDatabase::class.java, dbName)
-            .addMigrations(LifeHubDatabase.MIGRATION_6_7).allowMainThreadQueries().build()
+            .addMigrations(LifeHubDatabase.MIGRATION_6_7, LifeHubDatabase.MIGRATION_7_8, LifeHubDatabase.MIGRATION_8_9).allowMainThreadQueries().build()
         val all = db.quickAddDao().getAll()
         assertEquals(2, all.size)
         val a = all.first { it.date == d1 }

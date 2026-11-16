@@ -67,7 +67,7 @@ data class TodayPlan(
 
 /** Active plans scheduled on [date] (ISO weekday in Plan.weekdays), in plan order; done = a completed session that day. */
 internal fun plansOn(date: LocalDate, plans: List<PlanWithExercises>, completed: List<WorkoutSession>): List<TodayPlan> =
-    plans.filter { !it.plan.isArchived && date.dayOfWeek.value in it.plan.weekdays }.map { p ->
+    com.lifehub.app.domain.plannedOn(date, plans).map { p ->
         TodayPlan(p.plan.id, p.plan.name, completed.any { it.planId == p.plan.id && it.date == date }, p.plan.dayType, p.exercises.size)
     }
 

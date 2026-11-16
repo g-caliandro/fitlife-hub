@@ -26,6 +26,9 @@ data class ExportV1(
     val achievements: List<AchievementDto> = emptyList(),
     val foods: List<FoodDto> = emptyList(),
     val foodEntries: List<FoodEntryDto> = emptyList(),
+    val foodPortions: List<FoodPortionDto> = emptyList(),
+    /** null in files before schemaVersion 8: the importing phone keeps its own measures. */
+    val householdMeasures: List<HouseholdMeasureDto>? = null,
 )
 
 @Serializable data class AppInfoDto(val name: String = "Life Hub", val version: String = "")
@@ -135,6 +138,7 @@ data class FoodDto(
     val kcal100: Double, val protein100: Double, val carbs100: Double, val fat100: Double,
     val servingSizeG: Double? = null, val favorite: Boolean = false, val lastUsedAt: Long? = null,
     val imageUrl: String? = null,
+    val state: FoodState? = null, val aliases: String? = null, val baseFoodId: String? = null, val incomplete: Boolean = false,
 )
 
 @Serializable
@@ -142,4 +146,12 @@ data class FoodEntryDto(
     val id: String, val date: String, val foodId: String? = null, val name: String, val brand: String? = null,
     val grams: Double, val kcal: Double, val proteinG: Double, val carbsG: Double, val fatG: Double, val createdAt: Long,
     val imageUrl: String? = null,
+    val loggedAt: Long? = null, val source: EntrySource? = null,
+    val servings: Double? = null, val portionLabel: String? = null, val portionGrams: Double? = null,
 )
+
+@Serializable
+data class FoodPortionDto(val id: String, val foodId: String, val label: String, val grams: Double, val isDefault: Boolean = false, val kind: PortionKind = PortionKind.USER, val createdAt: Long = 0)
+
+@Serializable
+data class HouseholdMeasureDto(val id: String, val label: String, val grams: Double, val foodId: String? = null, val baseFoodId: String? = null, val updatedAt: Long = 0)

@@ -209,10 +209,23 @@ data class Food(
     val lastUsedAt: Instant?,
     /** Open Food Facts product image (null for custom foods). */
     val imageUrl: String? = null,
+    /** v9: RAW / COOKED when it matters (copilot base table copies, user choice); null = not relevant. */
+    val state: FoodState? = null,
+    /** v9: user synonyms, `|`-separated (matched by the copilot's FoodResolver). */
+    val aliases: String? = null,
+    /** v9: id of the base_foods row this food was copied from (source BASE). */
+    val baseFoodId: String? = null,
+    /** v9: Open Food Facts product with missing macros (stored as 0, owner decision 11): shown as incomplete. */
+    @ColumnInfo(defaultValue = "0") val incomplete: Boolean = false,
 )
 
-/** One logged food of a day. Name/brand and macros are snapshots (survive food edits/deletion). */
-@Entity(tableName = "food_entries", indices = [Index("date")])
+/**
+ * One logged food of a day. Name/brand and macros are snapshots (survive food edits/deletion).
+ * v9 provenance (copilot logs; null for entries added from the food screens): [loggedAt] = meal date AND time
+ * (owner decision 2), [source], [captureId] = the capture that wrote it (Undo), [servings]/[portionLabel]/[portionGrams]
+ * = the portion used ("0.5 x package (400 g)").
+ */
+@Entity(tableName = "food_entries", indices = [Index("date"), Index("captureId")])
 data class FoodEntry(
     @PrimaryKey val id: String,
     val date: LocalDate,
@@ -227,4 +240,10 @@ data class FoodEntry(
     val createdAt: Instant,
     /** Snapshot of the food's image URL. */
     val imageUrl: String? = null,
+    val loggedAt: Instant? = null,
+    val source: EntrySource? = null,
+    val captureId: String? = null,
+    val servings: Double? = null,
+    val portionLabel: String? = null,
+    val portionGrams: Double? = null,
 )

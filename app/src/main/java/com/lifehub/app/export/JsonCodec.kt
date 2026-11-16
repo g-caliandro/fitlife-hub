@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 class ImportException(message: String) : Exception(message)
 
 object JsonCodec {
-    const val SCHEMA_VERSION = 7
+    const val SCHEMA_VERSION = 8
     private const val MIN_SCHEMA_VERSION = 1
 
     val README = "Life Hub export. All personal fitness data of one user. `goals` are objectives with a time window " +
@@ -34,7 +34,14 @@ object JsonCodec {
         "optional links to exercise/goal/session, `dedupeKey` unique. `foods` are custom foods and cached Open Food Facts products " +
         "(values per 100 g: kcal100, protein100, carbs100, fat100; servingSizeG optional; imageUrl = product photo URL or null); `foodEntries` are logged foods per date with " +
         "a name snapshot, `grams` and the computed kcal/proteinG/carbsG/fatG. Daily totals = sum of `foodEntries` + `quickAdds` of that date. " +
-        "`settings.kcalTarget`/`carbsTargetG`/`fatTargetG` are optional daily targets."
+        "`settings.kcalTarget`/`carbsTargetG`/`fatTargetG` are optional daily targets. " +
+        "Since schemaVersion 8: foods may have `state` (RAW/COOKED), `aliases` (synonyms separated by |), `baseFoodId` (copied " +
+        "from the bundled USDA-based base table) and `incomplete` (Open Food Facts product with missing macros, stored as 0); " +
+        "`foodPortions` are named portions of a food in grams (`kind` PACKAGE = the whole pack, SERVING, PIECE, USER; one " +
+        "`isDefault`); `householdMeasures` are grams per spoon/glass/slice/piece, generic or for one food; foodEntries written " +
+        "by the copilot carry provenance: `loggedAt` (meal date and time, epoch millis), `source` (HISTORY, BASE_TABLE, " +
+        "OPEN_FOOD_FACTS, LLM_ESTIMATE), `servings` + `portionLabel` + `portionGrams` (portion or measure used). Copilot chats " +
+        "and captures are not exported."
 
     val json = Json {
         prettyPrint = true; encodeDefaults = true; explicitNulls = true
@@ -93,10 +100,17 @@ object JsonCodec {
         },
         foods = s.foods.sortedBy { it.id }.map {
             FoodDto(it.id, it.source, it.barcode, it.name, it.brand, it.kcal100, it.protein100, it.carbs100, it.fat100,
-                it.servingSizeG, it.favorite, it.lastUsedAt?.toEpochMilli(), it.imageUrl)
+                it.servingSizeG, it.favorite, it.lastUsedAt?.toEpochMilli(), it.imageUrl, it.state, it.aliases, it.baseFoodId, it.incomplete)
         },
         foodEntries = s.foodEntries.sortedWith(compareBy({ it.date }, { it.createdAt }, { it.id })).map {
-            FoodEntryDto(it.id, it.date.toString(), it.foodId, it.name, it.brand, it.grams, it.kcal, it.proteinG, it.carbsG, it.fatG, it.createdAt.toEpochMilli(), it.imageUrl)
+            FoodEntryDto(it.id, it.date.toString(), it.foodId, it.name, it.brand, it.grams, it.kcal, it.proteinG, it.carbsG, it.fatG, it.createdAt.toEpochMilli(), it.imageUrl,
+                it.loggedAt?.toEpochMilli(), it.source, it.servings, it.portionLabel, it.portionGrams)
+        },
+        foodPortions = s.portions.sortedWith(compareBy({ it.foodId }, { it.id })).map {
+            FoodPortionDto(it.id, it.foodId, it.label, it.grams, it.isDefault, it.kind, it.createdAt.toEpochMilli())
+        },
+        householdMeasures = s.measures?.sortedBy { it.id }?.map {
+            HouseholdMeasureDto(it.id, it.label, it.grams, it.foodId, it.baseFoodId, it.updatedAt.toEpochMilli())
         },
     )
 
@@ -164,8 +178,13 @@ object JsonCodec {
                 QuickAddEntry("macro-${date.toEpochDay()}", date, null, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, inst(it.updatedAt))
             },
             bodyEntries = d.bodyEntries.map { BodyEntry(LocalDate.parse(it.date), it.weightKg, it.muscleKg, it.fatKg, inst(it.updatedAt)) },
-            foods = d.foods.map { Food(it.id, it.source, it.barcode, it.name, it.brand, it.kcal100, it.protein100, it.carbs100, it.fat100, it.servingSizeG, it.favorite, it.lastUsedAt?.let(::inst), it.imageUrl) },
-            foodEntries = d.foodEntries.map { FoodEntry(it.id, LocalDate.parse(it.date), it.foodId, it.name, it.brand, it.grams, it.kcal, it.proteinG, it.carbsG, it.fatG, inst(it.createdAt), it.imageUrl) },
+            foods = d.foods.map { Food(it.id, it.source, it.barcode, it.name, it.brand, it.kcal100, it.protein100, it.carbs100, it.fat100, it.servingSizeG, it.favorite, it.lastUsedAt?.let(::inst), it.imageUrl, it.state, it.aliases, it.baseFoodId, it.incomplete) },
+            foodEntries = d.foodEntries.map {
+                FoodEntry(it.id, LocalDate.parse(it.date), it.foodId, it.name, it.brand, it.grams, it.kcal, it.proteinG, it.carbsG, it.fatG, inst(it.createdAt), it.imageUrl,
+                    it.loggedAt?.let(::inst), it.source, null, it.servings, it.portionLabel, it.portionGrams)
+            },
+            portions = d.foodPortions.map { FoodPortion(it.id, it.foodId, it.label, it.grams, it.isDefault, it.kind, inst(it.createdAt)) },
+            measures = d.householdMeasures?.map { HouseholdMeasure(it.id, it.label, it.grams, it.foodId, it.baseFoodId, inst(it.updatedAt)) },
             achievements = d.achievements.distinctBy { it.dedupeKey }.map {
                 Achievement(it.id, it.kind, it.title, it.detail, it.value, it.unit, it.exerciseId?.takeIf { e -> e in exerciseIds },
                     it.goalId?.takeIf { g -> g in goalIds }, it.sessionId?.takeIf { x -> x in sessionIds },

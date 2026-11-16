@@ -22,6 +22,7 @@ import com.lifehub.app.feature.achievements.AchievementsRoute
 import com.lifehub.app.feature.body.BodyEditRoute
 import com.lifehub.app.feature.body.BodyListRoute
 import com.lifehub.app.feature.calendar.CalendarRoute
+import com.lifehub.app.feature.copilot.ChatRoute
 import com.lifehub.app.feature.food.AddFoodRoute
 import com.lifehub.app.feature.food.CustomFoodRoute
 import com.lifehub.app.feature.food.FoodDetailRoute
@@ -39,6 +40,7 @@ import com.lifehub.app.feature.plans.PlanEditRoute
 import com.lifehub.app.feature.plans.PlansRoute
 import com.lifehub.app.feature.settings.AboutRoute
 import com.lifehub.app.feature.settings.DataRoute
+import com.lifehub.app.feature.settings.CopilotSettingsRoute
 import com.lifehub.app.feature.settings.NotificationsRoute
 import com.lifehub.app.feature.settings.SettingsRoute
 import com.lifehub.app.feature.settings.TargetsRoute
@@ -168,6 +170,10 @@ fun LhNavHost(
         composable(Routes.YOU) { YouRoute(nav, back) }
         composable(Routes.TARGETS) { TargetsRoute(back) }
         composable(Routes.SETTINGS_NOTIFICATIONS) { NotificationsRoute(back) }
+        composable(Routes.SETTINGS_COPILOT) { CopilotSettingsRoute(back, onOpenMeasures = { nav(Routes.SETTINGS_COPILOT_MEASURES) }) }
+        composable(Routes.SETTINGS_COPILOT_MEASURES) { com.lifehub.app.feature.settings.HouseholdMeasuresRoute(back) }
+        composable(Routes.COPILOT, arguments = listOf(strArg("threadId"))) { ChatRoute(nav, back) }
+        composable(Routes.COPILOT_INBOX) { com.lifehub.app.feature.copilot.InboxRoute(nav, back) }
         composable(Routes.SETTINGS_DATA) { DataRoute(back) }
         composable(Routes.ABOUT) { AboutRoute(back) }
         composable(Routes.ACHIEVEMENTS) { AchievementsRoute(nav, back) }

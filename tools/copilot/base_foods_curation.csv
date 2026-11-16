@@ -1,0 +1,257 @@
+fdc_id;name_it;aliases;state
+# Fitness Copilot base food table, hand curation. Source of the values: USDA FoodData Central, SR Legacy (April 2018), CC0 1.0.
+# Columns: SR Legacy fdc_id; Italian name; synonyms separated by |; raw | cooked | empty (state not relevant).
+# Rebuild the asset with: python3 -I tools/copilot/build_base_foods.py <unzipped SR Legacy CSV dir>
+# --- Cereali e derivati
+169756;Riso bianco;riso|riso basmati|riso thai|riso jasmine|riso a chicco lungo|riso bianco crudo;raw
+169757;Riso bianco cotto;riso|riso basmati|riso thai|riso bollito|riso lesso;cooked
+168881;Riso per risotti (arborio, carnaroli);riso arborio|riso carnaroli|riso per risotto|riso originario|riso a chicco corto;raw
+168882;Riso per risotti cotto;riso arborio|riso carnaroli|riso a chicco corto;cooked
+169703;Riso integrale;riso integrale;raw
+169704;Riso integrale cotto;riso integrale;cooked
+169759;Riso parboiled cotto;riso parboiled;cooked
+169736;Pasta di semola;pasta|spaghetti|penne|fusilli|rigatoni|maccheroni|linguine|farfalle|pasta secca|pasta di grano duro;raw
+169737;Pasta di semola cotta;pasta|spaghetti|penne|fusilli|rigatoni|maccheroni|linguine|farfalle;cooked
+169738;Pasta integrale;pasta integrale|spaghetti integrali|penne integrali;raw
+168910;Pasta integrale cotta;pasta integrale|spaghetti integrali|penne integrali;cooked
+173904;Fiocchi d'avena;avena|fiocchi di avena|fiocchi d'avena;raw
+173905;Porridge d'avena cotto in acqua;porridge|porridge di avena;cooked
+170284;Orzo perlato;orzo;raw
+170285;Orzo perlato cotto;orzo;cooked
+169699;Cous cous;couscous|cuscus;raw
+169700;Cous cous cotto;couscous|cuscus;cooked
+168874;Quinoa;quinoa;raw
+168917;Quinoa cotta;quinoa;cooked
+169745;Farro;farro|spelta;raw
+169746;Farro cotto;farro|spelta;cooked
+170286;Grano saraceno;grano saraceno;raw
+169702;Miglio;miglio;raw
+168871;Miglio cotto;miglio;cooked
+168894;Farina di frumento 00;farina|farina 00|farina bianca|farina di grano tenero;
+169715;Semola di grano duro;semola|semolino;
+169697;Farina di mais;farina di mais|farina gialla|farina per polenta;
+174913;Pane comune;pane|pane comune|pane casereccio|pane bianco|panino;
+172675;Baguette;baguette|pane francese|filone;
+174924;Pane in cassetta;pane in cassetta|pancarre|pan carre|pane per toast;
+172688;Pane integrale;pane integrale;
+172684;Pane di segale;pane di segale|pane nero;
+174899;Bagel;bagel;
+172746;Cracker salati;cracker|crackers|salatini;
+172749;Cracker integrali;cracker integrali|crackers integrali;
+170250;Gallette di riso;gallette|gallette di riso|gallette soffiate;
+171646;Granola;granola|muesli croccante;
+174648;Corn flakes;cornflakes|corn flakes|fiocchi di mais;
+174950;Biscotti al burro;biscotti al burro|frollini al burro;
+# --- Legumi e derivati
+173756;Ceci secchi;ceci;raw
+173757;Ceci cotti;ceci|ceci lessi;cooked
+173800;Ceci in scatola sgocciolati;ceci in scatola|ceci in barattolo|ceci precotti;
+172420;Lenticchie secche;lenticchie;raw
+172421;Lenticchie cotte;lenticchie|lenticchie lesse;cooked
+174284;Lenticchie rosse decorticate;lenticchie rosse;raw
+175202;Fagioli cannellini secchi;fagioli cannellini|cannellini|fagioli bianchi;raw
+175203;Fagioli cannellini cotti;fagioli cannellini|cannellini|fagioli bianchi;cooked
+175204;Fagioli cannellini in scatola;cannellini in scatola|fagioli bianchi in scatola;
+175193;Fagioli rossi secchi;fagioli rossi|fagioli kidney;raw
+175194;Fagioli rossi cotti;fagioli rossi|fagioli kidney;cooked
+174285;Fagioli rossi in scatola sgocciolati;fagioli rossi in scatola;
+175199;Fagioli borlotti secchi;borlotti|fagioli borlotti;raw
+175200;Fagioli borlotti cotti;borlotti|fagioli borlotti;cooked
+173734;Fagioli neri secchi;fagioli neri;raw
+173735;Fagioli neri cotti;fagioli neri;cooked
+175205;Fave secche;fave;raw
+173753;Fave cotte;fave;cooked
+170419;Piselli;piselli|piselli freschi;raw
+170017;Piselli surgelati cotti;piselli;cooked
+172429;Piselli spezzati cotti;piselli spezzati|piselli secchi;cooked
+169282;Edamame;edamame|soia verde|fagioli di soia verdi;raw
+172475;Tofu;tofu;
+172446;Bevanda di soia;latte di soia|bevanda alla soia;
+174832;Bevanda di mandorla non zuccherata;latte di mandorla|bevanda alla mandorla;
+174289;Hummus;hummus|hummus di ceci;
+# --- Carne e salumi
+171077;Petto di pollo;petto di pollo|fesa di pollo|filetto di pollo|filetti di pollo|pollo petto;raw
+171477;Petto di pollo arrosto;petto di pollo|fesa di pollo|filetto di pollo;cooked
+173627;Coscia di pollo senza pelle;coscia di pollo|cosce di pollo|sovracoscia di pollo;raw
+172388;Coscia di pollo arrosto;coscia di pollo|cosce di pollo|sovracoscia di pollo;cooked
+174515;Petto di tacchino;petto di tacchino|fesa di tacchino|tacchino;raw
+174516;Petto di tacchino arrosto;petto di tacchino|fesa di tacchino|tacchino;cooked
+174030;Macinato di manzo magro (90/10);macinato magro|carne macinata magra;raw
+171796;Macinato di manzo (85/15);macinato|carne macinata|macinato di manzo|trita di manzo;raw
+174036;Macinato di manzo grasso (80/20);macinato grasso;raw
+174033;Hamburger di manzo cotto (85/15);hamburger|hamburger di manzo|macinato;cooked
+174055;Controfiletto di manzo;bistecca|bistecca di manzo|controfiletto|entrecote|sirloin;raw
+171812;Filetto di manzo;filetto di manzo|filetto;raw
+173998;Girello di manzo;girello|fettine di manzo|fesa di manzo;raw
+168249;Filetto di maiale;filetto di maiale|filetto di suino;raw
+168250;Filetto di maiale arrosto;filetto di maiale|filetto di suino;cooked
+168263;Lonza di maiale;lonza|braciola di maiale|arista|carre di maiale;raw
+175269;Fesa di vitello;vitello|fesa di vitello|fettine di vitello|scaloppine;raw
+173864;Prosciutto cotto;prosciutto cotto;
+174603;Salame;salame|salame italiano;
+174573;Mortadella;mortadella;
+# --- Pesce e frutti di mare
+175167;Salmone;salmone|filetto di salmone|salmone d'allevamento;raw
+175168;Salmone cotto;salmone|filetto di salmone;cooked
+173686;Salmone selvaggio;salmone selvaggio;raw
+171955;Merluzzo;merluzzo|filetti di merluzzo|merluzzo fresco;raw
+171956;Merluzzo cotto;merluzzo|filetti di merluzzo;cooked
+174190;Baccalà;baccala|merluzzo salato;
+173709;Tonno al naturale sgocciolato;tonno al naturale|tonno in acqua;
+173708;Tonno sott'olio sgocciolato;tonno sott'olio|tonno all'olio|tonno in scatola;
+175159;Tonno fresco;tonno fresco|tonno pinna gialla;raw
+175142;Branzino;branzino|spigola;raw
+173717;Trota;trota|trota iridea;raw
+175119;Sgombro;sgombro;raw
+174182;Alici;alici|acciughe|alici fresche;raw
+174183;Alici sott'olio;acciughe sott'olio|alici sott'olio;
+175139;Sardine sott'olio;sardine sott'olio|sardine in scatola;
+175176;Tilapia;tilapia;raw
+171964;Eglefino;eglefino|haddock;raw
+173703;Pesce spada;pesce spada;raw
+175179;Gamberi;gamberi|gamberetti|mazzancolle;raw
+175180;Gamberi cotti;gamberi|gamberetti|mazzancolle;cooked
+174223;Calamari;calamari|totani;raw
+174218;Polpo;polpo|polipo;raw
+174249;Polpo cotto;polpo|polipo;cooked
+174216;Cozze;cozze|mitili;raw
+174217;Cozze cotte;cozze|mitili;cooked
+174214;Vongole;vongole;raw
+# --- Uova
+171287;Uovo;uovo|uova|uovo intero|uova intere;raw
+173424;Uovo sodo;uovo sodo|uova sode|uovo|uova;cooked
+173423;Uovo fritto;uovo fritto|uova fritte|uovo all'occhio di bue;cooked
+172187;Uova strapazzate;uova strapazzate|uovo strapazzato;cooked
+172183;Albume d'uovo;albume|albumi|chiara d'uovo|albume d'uovo;raw
+172184;Tuorlo d'uovo;tuorlo|tuorli|rosso d'uovo;raw
+# --- Latte e derivati
+171265;Latte intero;latte intero|latte;
+171267;Latte parzialmente scremato;latte parzialmente scremato|latte ps;
+171269;Latte scremato;latte scremato|latte magro;
+171284;Yogurt bianco intero;yogurt|yogurt bianco|yogurt intero|yogurt naturale;
+170886;Yogurt bianco magro;yogurt magro|yogurt bianco magro;
+171304;Yogurt greco intero;yogurt greco intero;
+170903;Yogurt greco 2%;yogurt greco 2%|yogurt greco parzialmente scremato;
+170894;Yogurt greco 0% grassi;yogurt greco 0|yogurt greco 0%|yogurt greco magro|yogurt greco zero grassi;
+170845;Mozzarella;mozzarella|fior di latte|mozzarella vaccina;
+170847;Mozzarella light;mozzarella light|mozzarella parzialmente scremata;
+171244;Mozzarella per pizza;mozzarella per pizza|mozzarella da pizza;
+170848;Parmigiano;parmigiano|parmigiano reggiano|grana|grana padano|parmigiano grattugiato|grana grattugiato|formaggio grattugiato;
+171249;Pecorino romano;pecorino|pecorino romano;
+170851;Ricotta;ricotta|ricotta vaccina;
+171248;Ricotta light;ricotta light|ricotta magra|ricotta parzialmente scremata;
+172182;Fiocchi di latte;fiocchi di latte|cottage cheese|cottage;
+173420;Feta;feta;
+172175;Gorgonzola;gorgonzola|formaggio erborinato;
+170850;Provolone;provolone;
+171251;Emmental;emmental|emmentaler|formaggio svizzero;
+171241;Gouda;gouda;
+173414;Cheddar;cheddar;
+173418;Formaggio spalmabile;formaggio spalmabile|formaggio cremoso|philadelphia;
+173430;Burro;burro;
+170859;Panna fresca da montare;panna|panna fresca|panna da montare;
+170857;Panna da cucina;panna da cucina;
+167575;Gelato alla vaniglia;gelato|gelato alla crema|gelato alla vaniglia;
+# --- Verdure e ortaggi
+170457;Pomodori;pomodoro|pomodori|pomodorini|pomodori freschi;raw
+170051;Pomodori pelati;pelati|pomodori pelati;
+170460;Passata di pomodoro;passata|passata di pomodoro;
+170054;Salsa di pomodoro;salsa di pomodoro;
+171192;Sugo al pomodoro pronto;sugo pronto|sugo al pomodoro|sugo di pomodoro;
+170393;Carote;carota|carote;raw
+169291;Zucchine;zucchina|zucchine;raw
+169292;Zucchine lesse;zucchina|zucchine;cooked
+170379;Broccoli;broccolo|broccoli;raw
+169967;Broccoli lessi;broccolo|broccoli;cooked
+168462;Spinaci;spinaci|spinaci freschi;raw
+168463;Spinaci lessi;spinaci;cooked
+169247;Lattuga;lattuga|lattuga romana|insalata|insalata verde;raw
+169387;Rucola;rucola|rughetta;raw
+168409;Cetrioli;cetriolo|cetrioli;raw
+170108;Peperoni rossi;peperone|peperoni|peperone rosso|peperoni rossi;raw
+169383;Peperoni gialli;peperone giallo|peperoni gialli;raw
+170427;Peperoni verdi;peperone verde|peperoni verdi;raw
+170000;Cipolle;cipolla|cipolle;raw
+169230;Aglio;aglio;raw
+169228;Melanzane;melanzana|melanzane;raw
+169986;Cavolfiore;cavolfiore;raw
+170397;Cavolfiore lesso;cavolfiore;cooked
+169251;Funghi champignon;funghi|champignon|funghi champignon;raw
+169961;Fagiolini;fagiolini|cornetti;raw
+169141;Fagiolini lessi;fagiolini|cornetti;cooked
+168389;Asparagi;asparago|asparagi;raw
+168390;Asparagi lessi;asparago|asparagi;cooked
+169205;Carciofi;carciofo|carciofi;raw
+168386;Carciofi lessi;carciofo|carciofi;cooked
+169385;Finocchi;finocchio|finocchi;raw
+169975;Cavolo cappuccio;cavolo|cavolo cappuccio;raw
+169988;Sedano;sedano;raw
+168448;Zucca;zucca;raw
+170026;Patate;patata|patate;raw
+170440;Patate lesse;patata|patate|patate bollite|patate lesse;cooked
+170093;Patate al forno senza condimento;patate al forno;cooked
+168555;Purè di patate;pure|pure di patate|purea di patate;
+168482;Patate dolci;patata dolce|patate dolci|patata americana|patate americane;raw
+168483;Patate dolci al forno;patata dolce|patate dolci|patata americana;cooked
+169998;Mais dolce;mais;raw
+169214;Mais in scatola sgocciolato;mais in scatola|mais dolce in scatola;
+170383;Cavoletti di Bruxelles;cavoletti di bruxelles|cavolini di bruxelles;raw
+168421;Cavolo riccio;cavolo riccio|kale|cavolo nero;raw
+169276;Ravanelli;ravanello|ravanelli;raw
+169246;Porri;porro|porri;raw
+171705;Avocado;avocado;raw
+169094;Olive nere;olive|olive nere;
+# --- Frutta
+171688;Mela;mela|mele;raw
+169118;Pera;pera|pere;raw
+173944;Banana;banana|banane;raw
+169097;Arancia;arancia|arance;raw
+169105;Mandarino;mandarino|mandarini|clementina|clementine;raw
+167762;Fragole;fragola|fragole;raw
+168153;Kiwi;kiwi;raw
+174683;Uva;uva;raw
+169928;Pesca;pesca|pesche;raw
+169124;Ananas;ananas;raw
+167765;Anguria;anguria|cocomero;raw
+169092;Melone;melone;raw
+171711;Mirtilli;mirtilli;raw
+171719;Ciliegie;ciliegia|ciliegie;raw
+171697;Albicocche;albicocca|albicocche;raw
+169949;Prugne;prugna|prugne|susina|susine;raw
+173021;Fichi;fico|fichi;raw
+167746;Limone;limone;raw
+169098;Spremuta d'arancia;spremuta|spremuta d'arancia|succo d'arancia fresco;
+168191;Datteri;dattero|datteri;
+# --- Frutta secca e semi
+170567;Mandorle;mandorle;
+170187;Noci;noci|noce;
+170581;Nocciole;nocciole;
+170184;Pistacchi;pistacchi;
+170162;Anacardi;anacardi;
+170591;Pinoli;pinoli;
+172430;Arachidi;arachidi|noccioline;
+173806;Arachidi tostate non salate;arachidi tostate|noccioline tostate;
+172470;Burro di arachidi;burro di arachidi|crema di arachidi;
+170554;Semi di chia;chia|semi di chia;
+169414;Semi di lino;semi di lino|lino;
+170562;Semi di girasole;semi di girasole;
+170556;Semi di zucca;semi di zucca;
+170150;Semi di sesamo;sesamo|semi di sesamo;
+# --- Grassi e condimenti
+171413;Olio d'oliva;olio|olio d'oliva|olio di oliva|olio extravergine|olio extravergine d'oliva|olio evo|evo;
+171025;Olio di semi di girasole;olio di girasole|olio di semi;
+172336;Olio di colza;olio di colza|olio di canola;
+171412;Olio di cocco;olio di cocco;
+171009;Maionese;maionese;
+168556;Ketchup;ketchup;
+172234;Senape;senape;
+172241;Aceto balsamico;aceto balsamico|balsamico;
+171579;Pesto alla genovese;pesto|pesto alla genovese|pesto al basilico;
+# --- Dolci
+169655;Zucchero;zucchero|zucchero semolato|zucchero bianco;
+169640;Miele;miele;
+169641;Marmellata;marmellata|confettura;
+169661;Sciroppo d'acero;sciroppo d'acero;
+169593;Cacao amaro in polvere;cacao|cacao amaro;
+170273;Cioccolato fondente 70-85%;cioccolato fondente|fondente;
+167587;Cioccolato al latte;cioccolato al latte;

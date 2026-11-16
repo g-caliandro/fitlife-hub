@@ -77,7 +77,7 @@ class Migration5To6Test {
             execSQL("INSERT INTO achievements (id, kind, title, detail, value, unit, exerciseId, goalId, sessionId, achievedOn, createdAt, dedupeKey) VALUES ('a2', 'SESSION_MILESTONE', '10 sessions', NULL, 10, NULL, NULL, NULL, NULL, 20000, 0, 'MS:10')")
         }
         val db = Room.databaseBuilder(ctx, LifeHubDatabase::class.java, dbName)
-            .addMigrations(LifeHubDatabase.MIGRATION_5_6, LifeHubDatabase.MIGRATION_6_7).allowMainThreadQueries().build()
+            .addMigrations(LifeHubDatabase.MIGRATION_5_6, LifeHubDatabase.MIGRATION_6_7, LifeHubDatabase.MIGRATION_7_8, LifeHubDatabase.MIGRATION_8_9).allowMainThreadQueries().build()
         val byId = db.exerciseDao().getAll().associateBy { it.id }
         val expected = mapOf(
             "ex-pull-up" to PULL, "ex-front-lever" to PULL, "ex-planche-lean" to PUSH, "ex-l-sit" to CORE, "ex-face-pull" to PULL,

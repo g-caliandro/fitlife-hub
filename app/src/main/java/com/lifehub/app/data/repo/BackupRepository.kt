@@ -28,12 +28,14 @@ class BackupRepositoryImpl(
             quickAdds = db.quickAddDao().getAll(), bodyEntries = db.bodyDao().getAll(),
             achievements = db.achievementDao().getAll(),
             foods = db.foodDao().getAll(), foodEntries = db.foodEntryDao().getAll(),
+            portions = db.portionDao().allPortions(), measures = db.portionDao().measures(),
         )
     }
 
     private suspend fun wipe() {
         db.achievementDao().deleteAll()
         db.foodEntryDao().deleteAll()
+        db.portionDao().deleteAllPortions()
         db.foodDao().deleteAll()
         db.sessionDao().deleteAllSets()
         db.sessionDao().deleteAll()
@@ -62,6 +64,10 @@ class BackupRepositoryImpl(
             db.achievementDao().insertAll(snapshot.achievements.filterNot { it.kind.isConsistency })
             db.foodDao().insertAll(snapshot.foods)
             db.foodEntryDao().insertAll(snapshot.foodEntries)
+            val foodIds = snapshot.foods.map { it.id }.toSet()
+            db.portionDao().insertPortions(snapshot.portions.filter { it.foodId in foodIds })
+            // Household measures are settings-like: replaced only when the file has them; "Delete all data" keeps them.
+            snapshot.measures?.let { db.portionDao().deleteAllMeasures(); db.portionDao().insertMeasures(it) }
         }
         settings.replace(snapshot.settings)
     }

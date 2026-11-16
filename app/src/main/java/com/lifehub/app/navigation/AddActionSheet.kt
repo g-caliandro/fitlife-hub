@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MonitorWeight
@@ -23,6 +24,7 @@ fun AddActionSheet(
     onQuickMacros: () -> Unit,
     onStartWorkout: () -> Unit,
     onLogWeight: () -> Unit,
+    onAskCopilot: () -> Unit = {},
 ) {
     val c = LhTheme.colors
     LhBottomSheet(onDismiss, title = "Add") {
@@ -34,6 +36,7 @@ fun AddActionSheet(
                 subtitle = activeWorkout ?: "Pick a plan", onClick = onStartWorkout,
             )
             LhListItem("Log weight", icon = Icons.Outlined.MonitorWeight, iconTint = c.carbs, subtitle = "Weight and body fat", onClick = onLogWeight)
+            LhListItem("Ask copilot", icon = Icons.Outlined.AutoAwesome, iconTint = c.primary, subtitle = "Questions about your food, training and goals", onClick = onAskCopilot)
         }
     }
 }

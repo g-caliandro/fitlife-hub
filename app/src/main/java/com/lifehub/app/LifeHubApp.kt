@@ -21,6 +21,7 @@ class LifeHubApp : Application() {
                 )
             } catch (_: Exception) {}
         }
+        container.recoverCaptures()
         NotificationScheduler.schedule(this, container.settings.current().dailyCheckTime, replace = false)
     }
 }

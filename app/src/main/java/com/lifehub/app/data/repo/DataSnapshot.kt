@@ -13,4 +13,8 @@ data class DataSnapshot(
     val quickAdds: List<QuickAddEntry>, val bodyEntries: List<BodyEntry>,
     val achievements: List<Achievement> = emptyList(),
     val foods: List<Food> = emptyList(), val foodEntries: List<FoodEntry> = emptyList(),
+    /** v9 food portions (with their food). */
+    val portions: List<FoodPortion> = emptyList(),
+    /** v9 household measures; null = not in the imported file (the current table is kept). */
+    val measures: List<HouseholdMeasure>? = null,
 )
