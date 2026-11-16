@@ -55,8 +55,8 @@ class VoiceFixture(val f: CopilotFixture, llm: LlmClient, val stt: FakeTranscrib
     val enqueued = mutableListOf<String>()
     val scheduler = CaptureScheduler { enqueued += it }
     val registry = ToolRegistry(f.fullRegistry.tools + ChatOnlyMemoryTool)
-    val center = NotificationCenter(f.captures, f.pending, { f.db.foodEntryDao().byCapture(it) }, sink, { notificationsEnabled }, f.time)
-    val processor = CaptureProcessor(f.captures, f.pending, f.writer, AgentLoop(llm, registry, f.chat, f.time), f.chat, f.time, center)
+    val center = NotificationCenter(f.captures, f.pending, { f.db.foodEntryDao().byCapture(it) }, sink, { notificationsEnabled }, f.time, { f.bodyLog.entriesOf(it) })
+    val processor = CaptureProcessor(f.captures, f.pending, f.writer, AgentLoop(llm, registry, f.chat, f.time), f.chat, f.time, center, AttachedProductContext(f.catalog))
     val runner = CaptureRunner(f.captures, f.chat, processor, stt, { "it" }, f.time, center)
     val voice = VoiceCaptures(f.chat, f.captures, scheduler, f.time)
     val actions = CopilotActions(processor, runner, scheduler, center)

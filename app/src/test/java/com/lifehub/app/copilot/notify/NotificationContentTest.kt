@@ -4,6 +4,7 @@ import com.lifehub.app.copilot.capture.PendingCodec
 import com.lifehub.app.copilot.capture.PendingItem
 import com.lifehub.app.copilot.capture.PendingOption
 import com.lifehub.app.copilot.capture.Per100
+import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.data.model.Capture
 import com.lifehub.app.data.model.CaptureStatus
 import com.lifehub.app.data.model.ChatOrigin
@@ -38,6 +39,28 @@ class NotificationContentTest {
         assertEquals("copilot-capture:c1", n.tag)
         assertEquals("copilot?threadId=t1", n.route)
         assertEquals("Logged 1 item · 329 kcal", CopilotNotificationContent.outcome(capture(), listOf(entry("Riso", 90.0, 328.5)), "r").title)
+    }
+
+    @Test fun outcomeNamesTheDayWhenItIsNotToday() {
+        val today = LocalDate.of(2026, 11, 16)
+        fun at(d: LocalDate) = entry("Salmone", 200.0, 400.0).copy(date = d)
+        assertEquals("Logged 1 item · 400 kcal", CopilotNotificationContent.outcome(capture(), listOf(at(today)), "r", today = today).title)
+        assertEquals("Logged 1 item · 400 kcal · yesterday", CopilotNotificationContent.outcome(capture(), listOf(at(today.minusDays(1))), "r", today = today).title)
+        assertEquals("Logged 1 item · 400 kcal · Fri 13 Nov", CopilotNotificationContent.outcome(capture(), listOf(at(today.minusDays(3))), "r", today = today).title)
+    }
+
+    @Test fun weightOutcomeShowsValueAndDayWithUndo() {
+        val today = LocalDate.of(2026, 11, 16)
+        val w = BodyEntry(today, 74.2, null, null, now)
+        val n = CopilotNotificationContent.outcome(capture(), emptyList(), "r", listOf(w), today)
+        assertEquals("Weight logged · 74.2 kg", n.title)
+        assertEquals(listOf(NotificationAction(ActionKind.UNDO, "Undo")), n.actions)
+        assertEquals("Weight logged · 74.0 kg · yesterday", CopilotNotificationContent.outcome(capture(), emptyList(), "r", listOf(w.copy(date = today.minusDays(1), weightKg = 74.0)), today).title)
+        // A meal and a weight in one capture: meal title, weight line in the text, one Undo.
+        val both = CopilotNotificationContent.outcome(capture(), listOf(entry("Riso", 90.0, 328.5)), "r", listOf(w), today)
+        assertEquals("Logged 1 item · 329 kcal", both.title)
+        assertTrue(both.text, both.text.contains("Weight 74.2 kg"))
+        assertEquals(1, both.actions.size)
     }
 
     @Test fun outcomeWithoutEntriesShowsTheReplyAndNoUndo() {

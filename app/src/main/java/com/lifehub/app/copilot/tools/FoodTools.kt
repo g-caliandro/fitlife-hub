@@ -37,8 +37,11 @@ import com.lifehub.app.copilot.food.ResolveStatus
 import com.lifehub.app.copilot.food.TextMatch
 import com.lifehub.app.data.model.CaptureStatus
 import com.lifehub.app.data.model.EntrySource
+import com.lifehub.app.data.model.FoodSource
 import com.lifehub.app.data.model.FoodState
 import com.lifehub.app.data.model.PendingKind
+import com.lifehub.app.data.repo.BarcodeLookup
+import com.lifehub.app.data.repo.ProductLookup
 import com.lifehub.app.data.model.PendingStatus
 import com.lifehub.app.data.prefs.Settings
 import com.lifehub.app.data.repo.FoodRepository
@@ -66,9 +69,11 @@ object FoodTools {
 
     fun all(
         resolver: FoodResolver, lookup: FoodRefLookup, catalog: FoodCatalog, writer: FoodLogWriter,
-        captures: CaptureStore, pending: PendingInputStore, food: FoodRepository, settings: () -> Settings,
-    ): List<CopilotTool> = listOf(
+        captures: CaptureStore, pending: PendingInputStore, food: FoodRepository,
+        barcodes: BarcodeLookup? = null, offCache: OffCandidateCache? = null, settings: () -> Settings,
+    ): List<CopilotTool> = listOfNotNull(
         ResolveFoodTool(resolver, catalog),
+        barcodes?.let { GetProductByBarcodeTool(it, catalog, offCache) },
         LogMealTool(lookup, catalog, writer, captures, food, settings),
         RequestUserInputTool(lookup, captures, pending),
     )
@@ -91,7 +96,10 @@ class FoodRefLookup(private val catalog: FoodCatalog, private val offCache: OffC
             // A base food the user already logged once is their own food now (same id every time, keeps its portions).
             "base" -> catalog.foodByBaseId(v)?.let { Candidates.fromFood(it, catalog.portions(it.id)).copy(ref = ref) }
                 ?: catalog.baseFood(v)?.let(Candidates::fromBase)
-            "off" -> catalog.foodByBarcode(v)?.let { Candidates.fromFood(it, catalog.portions(it.id)).copy(ref = ref) } ?: offCache.get(v)
+            "off" -> catalog.foodByBarcode(v)?.let { f ->
+                // A cached Open Food Facts product keeps its provenance (a scanned product is not "history").
+                Candidates.fromFood(f, catalog.portions(f.id)).copy(ref = ref, source = if (f.source == FoodSource.OFF) EntrySource.OPEN_FOOD_FACTS else EntrySource.HISTORY)
+            } ?: offCache.get(v)
             "estimate" -> return estimate(ref)
             else -> null
         }
@@ -123,10 +131,10 @@ private fun round1(v: Double) = (v * 10).roundToInt() / 10.0
 private fun JsonObjectBuilder.putOrNull(key: String, v: Number?) = put(key, v?.let(::JsonPrimitive) ?: JsonNull)
 private fun JsonObjectBuilder.putOrNull(key: String, v: String?) = put(key, v?.let(::JsonPrimitive) ?: JsonNull)
 private fun stateArg(s: String?): FoodState? = when (s) { "raw" -> FoodState.RAW; "cooked" -> FoodState.COOKED; else -> null }
-private fun portionText(p: PortionInfo) = "${p.label} ${fmt(p.grams)} g" + if (p.isDefault) " (default)" else ""
-private fun fmt(v: Double) = if (v == Math.floor(v)) v.toLong().toString() else round1(v).toString()
+internal fun portionText(p: PortionInfo) = "${p.label} ${fmt(p.grams)} g" + if (p.isDefault) " (default)" else ""
+internal fun fmt(v: Double) = if (v == Math.floor(v)) v.toLong().toString() else round1(v).toString()
 
-private fun candidateJson(c: FoodCandidate, measures: List<String>) = buildJsonObject {
+internal fun candidateJson(c: FoodCandidate, measures: List<String>) = buildJsonObject {
     put("ref", c.ref); put("name", c.name); putOrNull("brand", c.brand); put("source", c.source.wire)
     putOrNull("state", c.state?.name?.lowercase())
     putJsonObject("per_100g") {
@@ -179,6 +187,53 @@ class ResolveFoodTool(private val resolver: FoodResolver, private val catalog: F
             ProductCard(it.name, it.brand, it.source.wire, it.kcal100, it.protein100, it.carbs100, it.fat100, it.portions.map(::portionText), it.incomplete)
         }
         return ToolOutcome.Ok(result, card)
+    }
+}
+
+/**
+ * `get_product_by_barcode(barcode)` (READ): local cache first, else Open Food Facts, with package weight and serving as
+ * portions. Writes nothing: the product is logged later with `log_meal` and the `ref` returned here. Missing macros are
+ * flagged `incomplete` (owner decision 11), never reported as real zeros.
+ */
+class GetProductByBarcodeTool(
+    private val barcodes: BarcodeLookup,
+    private val catalog: FoodCatalog,
+    private val offCache: OffCandidateCache?,
+) : CopilotTool {
+    override val name = "get_product_by_barcode"
+    override val description = "Looks up a packaged product by its barcode (EAN/UPC digits): local cache first, then Open Food Facts. " +
+        "Returns its values per 100 g, its portions (package weight, serving) and a ref for log_meal. Use it when the user " +
+        "gives a barcode; a product the user scanned in the chat is already described in the conversation."
+    override val kind = ToolKind.READ
+    override val schema = ToolSchema(listOf(Param("barcode", ParamType.Str("The barcode digits, 8 to 14 digits.", minLength = 8, maxLength = 14))))
+
+    override suspend fun execute(args: ToolArgs, ctx: ToolContext): ToolOutcome {
+        val code = args.string("barcode")!!.trim()
+        if (!code.all { it.isDigit() }) return ToolOutcome.Error("'barcode' must contain only digits.")
+        return when (val r = barcodes.findProduct(code)) {
+            is ProductLookup.Failed -> ToolOutcome.Error("Open Food Facts is not reachable right now (${r.message}) and the product is not in the local cache. Tell the user and do not guess the product.")
+            ProductLookup.NotFound -> ToolOutcome.Ok(buildJsonObject {
+                put("status", "not_found")
+                put("note", "No product with this barcode in the local cache or Open Food Facts. Tell the user; do NOT log or invent it.")
+            })
+            is ProductLookup.Found -> {
+                val c = Candidates.fromScanned(r.product)
+                offCache?.put(c)
+                val measures = Candidates.measuresFor(c, catalog.measures()).filter { it.specific }.map { "${it.label} ${fmt(it.grams)} g" }
+                ToolOutcome.Ok(
+                    buildJsonObject {
+                        put("status", "found"); put("cached", r.product.cached)
+                        put("food", candidateJson(c, measures))
+                        put("note", buildString {
+                            append("Log it with log_meal using this ref.")
+                            if (c.incomplete) append(" Some macros are missing on Open Food Facts: the log will be marked incomplete.")
+                            if (c.portions.none { it.kind == com.lifehub.app.data.model.PortionKind.PACKAGE }) append(" The package weight is unknown: for 'half a pack' ask with request_user_input kind package_weight.")
+                        })
+                    },
+                    ProductCard(c.name, c.brand, c.source.wire, c.kcal100, c.protein100, c.carbs100, c.fat100, c.portions.map(::portionText), c.incomplete),
+                )
+            }
+        }
     }
 }
 

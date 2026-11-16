@@ -1,10 +1,14 @@
 package com.lifehub.app.copilot.notify
 
 import com.lifehub.app.copilot.capture.PendingCodec
+import com.lifehub.app.copilot.agent.dayLabel
+import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.data.model.Capture
 import com.lifehub.app.data.model.FoodEntry
 import com.lifehub.app.data.model.PendingInput
 import com.lifehub.app.feature.food.fmtGrams
+import java.time.LocalDate
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /** The three copilot notification types (design doc §11), one Android channel each. */
@@ -43,7 +47,17 @@ object CopilotNotificationContent {
     fun pendingTag(pendingId: String) = "copilot-pending:$pendingId"
 
     /** Outcome: what was logged and the total kcal, with Undo; without entries, the copilot's reply (no Undo). */
-    fun outcome(capture: Capture, entries: List<FoodEntry>, route: String): NotificationSpec {
+    fun outcome(capture: Capture, entries: List<FoodEntry>, route: String, weights: List<BodyEntry> = emptyList(), today: LocalDate? = null): NotificationSpec {
+        // A log that did not land on today says which day (retroactive logs: "yesterday", "Sun 15 Nov").
+        fun day(d: LocalDate): String? = if (today == null || d == today) null else if (d == today.minusDays(1)) "yesterday" else dayLabel(d, today)
+        fun suffix(d: LocalDate) = day(d)?.let { " · $it" }.orEmpty()
+        val weightLines = weights.map { "Weight ${fmtKg(it.weightKg)} kg" + (day(it.date)?.let { d -> " ($d)" }.orEmpty()) }
+        if (entries.isEmpty() && weights.isNotEmpty()) {
+            val w = weights.first()
+            val title = "Weight logged · ${fmtKg(w.weightKg)} kg" + suffix(w.date)
+            val text = (weightLines.drop(1) + listOfNotNull(capture.outcome?.takeIf { it.isNotBlank() })).joinToString("\n")
+            return NotificationSpec(captureTag(capture.id), CopilotChannel.OUTCOME, title, text.ifEmpty { weightLines.first() }, listOf(NotificationAction(ActionKind.UNDO, "Undo")), capture.id, route = route)
+        }
         if (entries.isEmpty()) {
             return NotificationSpec(
                 captureTag(capture.id), CopilotChannel.OUTCOME, "Copilot",
@@ -53,8 +67,8 @@ object CopilotNotificationContent {
         }
         val kcal = entries.sumOf { it.kcal }.roundToInt()
         val items = entries.joinToString(", ") { "${it.name} ${fmtGrams(it.grams)} g" }
-        val title = "Logged ${entries.size} item" + (if (entries.size == 1) "" else "s") + " · $kcal kcal"
-        val text = listOfNotNull(items, capture.outcome?.takeIf { it.isNotBlank() }).joinToString("\n")
+        val title = "Logged ${entries.size} item" + (if (entries.size == 1) "" else "s") + " · $kcal kcal" + suffix(entries.first().date)
+        val text = (listOf(items) + weightLines + listOfNotNull(capture.outcome?.takeIf { it.isNotBlank() })).joinToString("\n")
         return NotificationSpec(captureTag(capture.id), CopilotChannel.OUTCOME, title, text, listOf(NotificationAction(ActionKind.UNDO, "Undo")), capture.id, route = route)
     }
 
@@ -81,6 +95,8 @@ object CopilotNotificationContent {
         return NotificationSpec(captureTag(capture.id), CopilotChannel.ERROR, "Couldn't process your voice note", text,
             listOf(NotificationAction(ActionKind.RETRY, "Retry")), capture.id, route = route)
     }
+
+    private fun fmtKg(v: Double) = String.format(Locale.US, "%.1f", v)
 
     private fun shortLabel(s: String) = if (s.length <= 24) s else s.take(23).trimEnd() + "…"
 }

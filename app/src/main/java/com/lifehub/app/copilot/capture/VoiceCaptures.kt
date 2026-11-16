@@ -27,8 +27,8 @@ class VoiceCaptures(
     }
 
     /** Chat mic: the capture joins [threadId]; the chat runs it in place (not queued). */
-    suspend fun saveInThread(threadId: String, audio: File): Capture =
-        captures.create(threadId, ChatOrigin.CHAT, text = null, zone = time.zone, now = time.now(), audioPath = audio.absolutePath)
+    suspend fun saveInThread(threadId: String, audio: File, attachedFoodId: String? = null): Capture =
+        captures.create(threadId, ChatOrigin.CHAT, text = null, zone = time.zone, now = time.now(), audioPath = audio.absolutePath, attachedFoodId = attachedFoodId)
 
     companion object { const val QUICK_TITLE = "Voice capture" }
 }

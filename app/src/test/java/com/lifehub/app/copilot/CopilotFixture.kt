@@ -13,7 +13,12 @@ import com.lifehub.app.copilot.food.OffCandidateCache
 import com.lifehub.app.copilot.food.RoomFoodCatalog
 import com.lifehub.app.copilot.tools.FoodRefLookup
 import com.lifehub.app.copilot.tools.FoodTools
+import com.lifehub.app.data.off.OffApi
+import com.lifehub.app.data.off.OffBarcodeSource
 import com.lifehub.app.data.off.OffProduct
+import com.lifehub.app.copilot.capture.AttachedProductContext
+import com.lifehub.app.copilot.capture.BodyLogWriter
+import com.lifehub.app.copilot.tools.BodyTools
 import com.lifehub.app.data.off.OffProductSearch
 import com.lifehub.app.data.off.OffResult
 import com.lifehub.app.copilot.llm.LlmClient
@@ -64,13 +69,20 @@ class CopilotFixture(seed: Boolean = true) {
     val pending = PendingInputStoreImpl(db)
     val writer = FoodLogWriter(db)
     val refs = FoodRefLookup(catalog, offCache, pending)
-    /** Read tools + food tools, as in AppContainer. */
+    // Phase 5: barcode lookup (fake Open Food Facts) and body weight.
+    val offApi = FakeOffApi()
+    val offBarcodes = FakeOffBarcodes()
+    val barcodes = BarcodeLookup(food, offApi, offBarcodes, db, time)
+    val bodyLog = BodyLogWriter(db)
+    /** Read tools + food tools + body tools, as in AppContainer. */
     val fullRegistry = ToolRegistry(
         ReadTools.all(food, { settings.current() }, goals, plans, sessions, body) +
-            FoodTools.all(resolver, refs, catalog, writer, captures, pending, food) { settings.current() },
+            FoodTools.all(resolver, refs, catalog, writer, captures, pending, food, barcodes, offCache) { settings.current() } +
+            BodyTools.all(bodyLog, captures),
     )
     fun agent(llm: LlmClient) = AgentLoop(llm, fullRegistry, chat, time)
-    fun processor(llm: LlmClient) = CaptureProcessor(captures, pending, writer, agent(llm), chat, time)
+    fun processor(llm: LlmClient, deleteAudio: (String) -> Unit = { runCatching { java.io.File(it).delete() } }) =
+        CaptureProcessor(captures, pending, writer, agent(llm), chat, time, attached = AttachedProductContext(catalog), deleteAudio = deleteAudio)
 
     init { if (seed) runBlocking { seed() } }
 
@@ -133,6 +145,25 @@ class FakeOff(var products: List<OffProduct> = emptyList(), var fail: Boolean = 
     override suspend fun search(query: String): OffResult<List<OffProduct>> {
         queries += query
         return if (fail) OffResult.Error("offline") else OffResult.Ok(products)
+    }
+}
+
+/** Legacy OFF API stand-in (scanner flow): [byCode] answers barcode lookups; records the codes asked. */
+class FakeOffApi(var byCode: Map<String, Food> = emptyMap(), var fail: Boolean = false) : OffApi {
+    val codes = mutableListOf<String>()
+    override suspend fun search(query: String): OffResult<List<Food>> = OffResult.Ok(emptyList())
+    override suspend fun byBarcode(code: String): OffResult<Food?> {
+        codes += code
+        return if (fail) OffResult.Error("offline") else OffResult.Ok(byCode[code])
+    }
+}
+
+/** Copilot barcode source stand-in: [products] by code (absent = unknown barcode). */
+class FakeOffBarcodes(var products: Map<String, OffProduct> = emptyMap(), var fail: Boolean = false) : OffBarcodeSource {
+    val codes = mutableListOf<String>()
+    override suspend fun product(code: String): OffResult<OffProduct?> {
+        codes += code
+        return if (fail) OffResult.Error("offline") else OffResult.Ok(products[code])
     }
 }
 

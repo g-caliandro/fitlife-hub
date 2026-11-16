@@ -9,6 +9,10 @@ import com.lifehub.app.copilot.agent.ToolRegistry
 import com.lifehub.app.copilot.llm.ConnectionTester
 import com.lifehub.app.copilot.tools.ReadTools
 import com.lifehub.app.copilot.tools.FoodTools
+import com.lifehub.app.copilot.tools.BodyTools
+import com.lifehub.app.copilot.capture.AttachedProductContext
+import com.lifehub.app.copilot.capture.BodyLogWriter
+import com.lifehub.app.data.off.OffBarcodeClient
 import com.lifehub.app.copilot.tools.FoodRefLookup
 import com.lifehub.app.copilot.capture.CaptureProcessor
 import com.lifehub.app.copilot.capture.CaptureStore
@@ -85,10 +89,14 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
     val pendingInputs: PendingInputStore = PendingInputStoreImpl(db)
     val foodLog = FoodLogWriter(db)
     val foodRefs = FoodRefLookup(foodCatalog, offCandidates, pendingInputs)
+    /** Scanner (app) and copilot barcode lookup; the scanner's "pick" mode and `get_product_by_barcode` use it. */
+    val barcodeLookup = BarcodeLookup(food, off, OffBarcodeClient(), db, time)
+    val bodyLog = BodyLogWriter(db)
     /** All copilot tools. Phases 5-6 append their write / draft tools here. */
     val copilotTools = ToolRegistry(
         ReadTools.all(food, { settings.current() }, goals, plans, sessions, body) +
-            FoodTools.all(foodResolver, foodRefs, foodCatalog, foodLog, captures, pendingInputs, food) { settings.current() },
+            FoodTools.all(foodResolver, foodRefs, foodCatalog, foodLog, captures, pendingInputs, food, barcodeLookup, offCandidates) { settings.current() } +
+            BodyTools.all(bodyLog, captures),
     )
     val agent = AgentLoop(llm, copilotTools, chat, time)
 
@@ -101,9 +109,9 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
     fun newVoiceRecorder(): VoiceRecorder = MediaVoiceRecorder(appContext)
     val notificationCenter = NotificationCenter(
         captures, pendingInputs, { id -> db.foodEntryDao().byCapture(id) }, AndroidNotificationSink(appContext),
-        { copilotSettings.current().notificationsEnabled }, time,
+        { copilotSettings.current().notificationsEnabled }, time, { id -> bodyLog.entriesOf(id) },
     )
-    val captureProcessor = CaptureProcessor(captures, pendingInputs, foodLog, agent, chat, time, notificationCenter)
+    val captureProcessor = CaptureProcessor(captures, pendingInputs, foodLog, agent, chat, time, notificationCenter, AttachedProductContext(foodCatalog))
     val captureRunner = CaptureRunner(captures, chat, captureProcessor, transcriber, { copilotSettings.current().sttLanguage }, time, notificationCenter)
     val captureScheduler: CaptureScheduler = WorkManagerCaptureScheduler(appContext)
     val voiceCaptures = VoiceCaptures(chat, captures, captureScheduler, time)

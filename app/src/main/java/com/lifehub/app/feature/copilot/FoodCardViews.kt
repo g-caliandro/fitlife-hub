@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.lifehub.app.copilot.agent.MealItemView
 import com.lifehub.app.copilot.agent.MealLoggedCard
 import com.lifehub.app.copilot.agent.PendingInputCard
+import com.lifehub.app.copilot.agent.WeightLoggedCard
+import com.lifehub.app.copilot.agent.dayLabel
 import com.lifehub.app.copilot.agent.ProductCard
 import com.lifehub.app.copilot.capture.PendingCodec
 import com.lifehub.app.core.designsystem.LhTheme
@@ -69,12 +71,6 @@ internal fun sourceLabel(wire: String): String = when (wire) {
     else -> wire
 }
 
-private fun dayLabel(date: LocalDate, today: LocalDate) = when (date) {
-    today -> "Today"
-    today.minusDays(1) -> "Yesterday"
-    else -> date.format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH))
-}
-
 /** "Meal logged": per item grams, kcal, macros, source badge and portion used; total; day's remaining; Undo / Open in diary. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -97,7 +93,7 @@ fun MealLoggedCardView(card: MealLoggedCard, undone: Boolean, today: LocalDate, 
             Text("${fmtInt(card.totalKcal.roundToInt())} kcal", style = LhType.label, color = c.foreground)
         }
         Text("P ${fmtMacro(card.totalProteinG)} · C ${fmtMacro(card.totalCarbsG)} · F ${fmtMacro(card.totalFatG)} g", style = LhType.captionMuted)
-        remainingText(card)?.let {
+        remainingText(card, today)?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = LhType.caption, color = c.mutedForeground, modifier = Modifier.testTag("meal-remaining"))
         }
@@ -113,12 +109,13 @@ fun MealLoggedCardView(card: MealLoggedCard, undone: Boolean, today: LocalDate, 
 
 private fun Modifier.padding8() = this.then(Modifier.padding(vertical = 8.dp))
 
-private fun remainingText(card: MealLoggedCard): String? {
+private fun remainingText(card: MealLoggedCard, today: LocalDate): String? {
     val parts = listOfNotNull(
         card.kcalRemaining?.let { if (it >= 0) "${fmtInt(it)} kcal left" else "${fmtInt(-it)} kcal over" },
         card.proteinRemainingG?.let { if (it >= 0) "$it g protein left" else "${-it} g protein over" },
     )
-    return if (parts.isEmpty()) null else "Today after this meal: " + parts.joinToString(" · ")
+    // The remaining amounts are those of the day the meal was logged on, not necessarily today.
+    return if (parts.isEmpty()) null else "${dayLabel(LocalDate.parse(card.date), today)} after this meal: " + parts.joinToString(" · ")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -144,6 +141,26 @@ private fun MealItemRow(item: MealItemView, undone: Boolean) {
             if (item.incomplete) LhBadge("Incomplete values", variant = LhBadgeVariant.Warning)
             if (item.stateMismatch) LhBadge("Raw values used", variant = LhBadgeVariant.Warning)
         }
+    }
+}
+
+/** "Weight logged": value and date, with Undo (restores the day's previous weight, or removes a new day's). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun WeightLoggedCardView(card: WeightLoggedCard, undone: Boolean, today: LocalDate, onUndo: (String) -> Unit, modifier: Modifier = Modifier) {
+    val c = LhTheme.colors
+    val date = LocalDate.parse(card.date)
+    LhCard(modifier.fillMaxWidth().testTag("card-weight-logged"), contentPadding = PaddingValues(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (undone) "Weight log undone" else "Weight logged", style = LhType.heading, color = if (undone) c.mutedForeground else c.foreground, modifier = Modifier.weight(1f))
+            Text(dayLabel(date, today), style = LhType.captionMuted, modifier = Modifier.testTag("weight-date"))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("${fmtMacro(card.weightKg)} kg", style = LhType.heading, color = if (undone) c.mutedForeground else c.foreground, modifier = Modifier.testTag("weight-value"))
+        card.previousWeightKg?.let { Text("Replaced ${fmtMacro(it)} kg", style = LhType.captionMuted) }
+        Spacer(Modifier.height(12.dp))
+        LhButton(if (undone) "Undone" else "Undo", { onUndo(card.captureId) }, Modifier.testTag("card-undo"),
+            variant = LhButtonVariant.Outline, size = LhButtonSize.Sm, leadingIcon = Icons.AutoMirrored.Outlined.Undo, enabled = !undone)
     }
 }
 

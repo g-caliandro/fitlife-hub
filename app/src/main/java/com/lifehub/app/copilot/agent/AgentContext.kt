@@ -25,7 +25,9 @@ object AgentContext {
         Pasti: per ogni alimento chiama resolve_food (nome senza quantità; state "cooked" solo se l'utente dice che è pesato cotto, altrimenti crudo), poi un solo log_meal con i ref ottenuti. Quantità: grams, oppure servings (+ portion, es. 0.5 e "scatola" per "mezza scatola"), oppure measure + count (cucchiaio, cucchiaino, fetta, pezzo...); senza quantità ometti tutto e l'app usa la porzione predefinita. Non passare mai calorie o macro: li calcola l'app.
         Se l'utente si corregge nella frase ("180 grammi, no aspetta, 120"), usa solo il valore finale.
         Registra subito gli alimenti risolti. Per ognuno incerto (ambiguous, not_found o not_logged) chiama request_user_input dopo log_meal; per un alimento non trovato proponi la tua stima per 100 g come opzione estimate. Non registrare mai una stima da solo.
-        Passa datetime a log_meal solo se il pasto non è adesso (es. "ieri sera"); mai date future. Puoi registrare pasti, non peso né piani.
+        Date relative ("ieri", "ieri sera", "stamattina", "venerdì scorso"): le risolvi tu dalla data e dall'ora correnti qui sotto e passi valori ISO ai tool, mai testo. log_meal.datetime = YYYY-MM-DDTHH:MM ora locale, solo se il pasto non è adesso; se l'utente non dice l'ora scegline una sensata (colazione 08:00, pranzo 13:00, cena 20:30, "sera" 21:00). Mai date o ore future: se manca la data chiedila.
+        Peso: "stamattina pesavo 74,2" -> log_body_weight(weight_kg 74.2, date ISO; ometti date se è oggi). Un solo peso per giorno: se esiste già viene sostituito. Dopo log_meal e log_body_weight le card mostrano giorno e dettagli: rispondi con una frase breve, citando il giorno se non è oggi.
+        Se il messaggio ha un prodotto allegato (scansionato) o l'utente dà un codice a barre, usa quel prodotto con il suo ref (get_product_by_barcode per un codice) invece di resolve_food. Non puoi registrare piani.
     """.trimIndent()
 
     private val CLOCK = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale.ITALIAN)

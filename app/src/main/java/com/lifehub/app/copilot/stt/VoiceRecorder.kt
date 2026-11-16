@@ -107,11 +107,15 @@ class SilenceDetector(
     }
 }
 
-/** Audio files of captures: `filesDir/captures/<uuid>.m4a` (kept until the owner deletes data; never in the export). */
+/**
+ * Audio files of captures: `noBackupFilesDir/captures/<uuid>.m4a` (out of Google backup without touching the backup rules,
+ * owner decision 16; never in the export). Captures created before phase 5 keep their absolute path in `filesDir/captures/`;
+ * that path still works, the file is deleted like any other once its capture is done.
+ */
 class CaptureAudioFiles(private val dir: File) {
     fun newFile(): File = File(dir, UUID.randomUUID().toString() + ".m4a").also { dir.mkdirs() }
 
     companion object {
-        fun forContext(context: Context) = CaptureAudioFiles(File(context.applicationContext.filesDir, "captures"))
+        fun forContext(context: Context) = CaptureAudioFiles(File(context.applicationContext.noBackupFilesDir, "captures"))
     }
 }

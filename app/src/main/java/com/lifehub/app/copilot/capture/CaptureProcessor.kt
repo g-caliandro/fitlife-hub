@@ -13,6 +13,7 @@ import com.lifehub.app.data.model.PendingKind
 import com.lifehub.app.data.model.PendingStatus
 import com.lifehub.app.data.repo.ChatStore
 import com.lifehub.app.data.repo.NewChatMessage
+import java.io.File
 
 /**
  * Side effects of closing things, so every place that shows them stays in sync: a request answered or discarded in the
@@ -46,10 +47,13 @@ class CaptureProcessor(
     private val chat: ChatStore,
     private val time: TimeSource,
     private val events: CaptureEvents = CaptureEvents.None,
+    private val attached: AttachedProductContext? = null,
+    private val deleteAudio: (String) -> Unit = { runCatching { File(it).delete() } },
 ) {
-    suspend fun submitText(threadId: String, text: String, origin: ChatOrigin = ChatOrigin.CHAT): CaptureRun {
+    /** [attachedFoodId]: a product scanned in the composer; its data enters every turn of this capture (retry and resume too). */
+    suspend fun submitText(threadId: String, text: String, origin: ChatOrigin = ChatOrigin.CHAT, attachedFoodId: String? = null): CaptureRun {
         val t = text.trim()
-        val c = captures.create(threadId, origin, t, time.zone, time.now())
+        val c = captures.create(threadId, origin, t, time.zone, time.now(), attachedFoodId = attachedFoodId)
         chat.append(threadId, NewChatMessage(ChatRole.USER, t, captureId = c.id), time.now())
         return process(c.id)
     }
@@ -91,14 +95,23 @@ class CaptureProcessor(
         val p = pending.discard(pendingId, time.now())
         events.pendingClosed(pendingId)
         val c = captures.get(p.captureId) ?: return
-        if (c.status == CaptureStatus.AWAITING_INPUT && pending.byCapture(c.id).none { it.status == PendingStatus.OPEN })
+        if (c.status == CaptureStatus.AWAITING_INPUT && pending.byCapture(c.id).none { it.status == PendingStatus.OPEN }) {
             captures.move(c.id, CaptureStatus.DONE, time.now())
+            releaseAudio(c.id)  // nothing is left to retry: the recording is not needed any more
+        }
+    }
+
+    /** Deletes the capture's audio file (if any) and forgets its path; the transcript stays. */
+    private suspend fun releaseAudio(captureId: String) {
+        val path = captures.get(captureId)?.audioPath ?: return
+        deleteAudio(path)
+        captures.clearAudio(captureId, time.now())
     }
 
     suspend fun undo(captureId: String): UndoResult {
         val open = pending.byCapture(captureId).filter { it.status == PendingStatus.OPEN }.map { it.id }
         val r = writer.undo(captureId, time.now())
-        if (r is UndoResult.Undone) { open.forEach(events::pendingClosed); events.captureUndone(captureId) }
+        if (r is UndoResult.Undone) { open.forEach(events::pendingClosed); events.captureUndone(captureId); releaseAudio(captureId) }
         return r
     }
 
@@ -107,7 +120,7 @@ class CaptureProcessor(
         val c = captures.move(captureId, CaptureStatus.PROCESSING, time.now())
         val threadId = c.threadId ?: error("capture without thread")
         // Quick (voice) captures never get chat-only tools such as save_user_memory (design doc §10).
-        val turn = agent.run(threadId, TurnOptions(toolFilter = ToolPolicy.forOrigin(c.origin), captureId = captureId, extraContext = listOfNotNull(resumeContext(captureId))))
+        val turn = agent.run(threadId, TurnOptions(toolFilter = ToolPolicy.forOrigin(c.origin), captureId = captureId, extraContext = listOfNotNull(c.attachedFoodId?.let { attached?.section(it) }, resumeContext(captureId))))
         val now = captures.get(captureId) ?: return CaptureRun(captureId, turn)
         if (now.status == CaptureStatus.CANCELLED) return CaptureRun(captureId, turn)
         when (turn) {

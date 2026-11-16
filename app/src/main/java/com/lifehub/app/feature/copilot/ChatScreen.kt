@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Stop
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -63,6 +65,7 @@ import com.lifehub.app.copilot.agent.DailySummaryCard
 import com.lifehub.app.copilot.agent.MealLoggedCard
 import com.lifehub.app.copilot.agent.PendingInputCard
 import com.lifehub.app.copilot.agent.ProductCard
+import com.lifehub.app.copilot.agent.WeightLoggedCard
 import com.lifehub.app.core.designsystem.LhRadius
 import com.lifehub.app.core.designsystem.LhTheme
 import com.lifehub.app.core.designsystem.LhType
@@ -94,6 +97,7 @@ fun ChatRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
         onMic = { if (hasMicPermission(ctx)) vm.startRecording() else micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
         onStopMic = vm::stopRecording, onCancelMic = vm::cancelRecording,
         onOpenInbox = { onNavigate(Routes.COPILOT_INBOX) },
+        onBarcode = { onNavigate(Routes.foodScanPick()) }, onRemoveAttachment = vm::removeAttachment,
         onOpenSettings = { onNavigate(Routes.SETTINGS_COPILOT) },
         onOpenDiary = { d -> DiaryJump.request(d); onNavigate(Routes.CALENDAR) },
         actions = CardActions(
@@ -118,6 +122,8 @@ fun ChatScreen(
     onStopMic: () -> Unit = {},
     onCancelMic: () -> Unit = {},
     onOpenInbox: () -> Unit = {},
+    onBarcode: () -> Unit = {},
+    onRemoveAttachment: () -> Unit = {},
 ) {
     val c = LhTheme.colors
     val list = rememberLazyListState()
@@ -143,13 +149,14 @@ fun ChatScreen(
             ) {
                 items(state.items, key = { it.key }) { item ->
                     when (item) {
-                        is ChatItem.User -> Bubble(item.text, mine = true)
+                        is ChatItem.User -> Bubble(item.text, mine = true, attachment = item.attachment)
                         is ChatItem.Assistant -> Bubble(item.text, mine = false)
                         is ChatItem.Card -> when (val card = item.card) {
                             is DailySummaryCard -> DailySummaryCardView(card, state.today, onOpenDiary)
                             is MealLoggedCard -> MealLoggedCardView(card, card.captureId in state.undoneCaptures, state.today, actions.onUndo, onOpenDiary)
                             is PendingInputCard -> PendingInputCardView(card, state.pending[card.pendingInputId], enabled = !state.working, actions)
                             is ProductCard -> ProductCardView(card)
+                            is WeightLoggedCard -> WeightLoggedCardView(card, card.captureId in state.undoneCaptures, state.today, actions.onUndo)
                         }
                     }
                 }
@@ -161,24 +168,33 @@ fun ChatScreen(
         Composer(
             enabled = !state.working && state.problem != ChatProblem.MissingKey, onSend = onSend, initialDraft = initialDraft,
             recording = state.recording, onMic = onMic, onStopMic = onStopMic, onCancelMic = onCancelMic,
+            attachment = state.attachment, onBarcode = onBarcode, onRemoveAttachment = onRemoveAttachment,
         )
     }
 }
 
 /** Plain text bubble: model text is short plain text, never rendered as markdown. */
 @Composable
-private fun Bubble(text: String, mine: Boolean) {
+private fun Bubble(text: String, mine: Boolean, attachment: String? = null) {
     val c = LhTheme.colors
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        Text(
-            text, style = LhType.body,
-            color = if (mine) c.onPrimaryContainer else c.foreground,
-            modifier = Modifier.widthIn(max = 300.dp)
+        Column(
+            Modifier.widthIn(max = 300.dp)
                 .background(if (mine) c.primaryContainer else c.card, LhRadius.lgShape)
                 .then(if (mine) Modifier else Modifier.border(1.dp, c.border, LhRadius.lgShape))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
                 .testTag(if (mine) "bubble-user" else "bubble-assistant"),
-        )
+        ) {
+            Text(text, style = LhType.body, color = if (mine) c.onPrimaryContainer else c.foreground)
+            attachment?.let {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("bubble-attachment")) {
+                    Icon(Icons.Outlined.QrCodeScanner, null, tint = c.onPrimaryContainer, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(it, style = LhType.caption, color = c.onPrimaryContainer)
+                }
+            }
+        }
     }
 }
 
@@ -244,10 +260,26 @@ private fun Problem(p: ChatProblem, onRetry: () -> Unit, onOpenSettings: () -> U
 private fun Composer(
     enabled: Boolean, onSend: (String) -> Boolean, initialDraft: String,
     recording: RecordingLevel? = null, onMic: () -> Unit = {}, onStopMic: () -> Unit = {}, onCancelMic: () -> Unit = {},
+    attachment: ChatAttachment? = null, onBarcode: () -> Unit = {}, onRemoveAttachment: () -> Unit = {},
 ) {
     val c = LhTheme.colors
     var text by rememberSaveable { mutableStateOf(initialDraft) }
     val send = { if (onSend(text)) text = "" }
+    // The scanned product, attached to the message being composed: shown as a chip, removable.
+    if (attachment != null && recording == null) {
+        Row(Modifier.fillMaxWidth().background(c.background).padding(start = 16.dp, end = 16.dp, top = 8.dp).testTag("chat-attachment"), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f, fill = false).background(c.secondary, LhRadius.fullShape).padding(start = 12.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.QrCodeScanner, null, tint = c.mutedForeground, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(attachment.label + if (attachment.incomplete) " · incomplete values" else "", style = LhType.label, color = c.foreground, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                LhIconButton(Icons.Outlined.Close, "Remove product", onRemoveAttachment, Modifier.testTag("chat-attachment-remove"))
+            }
+        }
+    }
     Row(
         Modifier.fillMaxWidth().background(c.background).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -263,6 +295,8 @@ private fun Composer(
             LhIconButton(Icons.Outlined.Stop, "Stop and send", onStopMic, Modifier.testTag("chat-mic-stop"), variant = LhButtonVariant.Destructive)
             return@Row
         }
+        LhIconButton(Icons.Outlined.QrCodeScanner, "Scan a barcode", onBarcode, Modifier.testTag("chat-barcode"), variant = LhButtonVariant.Tonal, enabled = enabled)
+        Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
             LhTextField(
                 text, { text = it }, Modifier.fillMaxWidth().testTag("chat-input"),

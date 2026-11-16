@@ -106,6 +106,16 @@ object Candidates {
         )
     }
 
+    /**
+     * A barcode product (cached or not yet): `off:<barcode>` for Open Food Facts products (the ref `log_meal` resolves from
+     * the cache or [OffCandidateCache]), `food:<id>` for the user's own foods that carry a barcode.
+     */
+    fun fromScanned(p: com.lifehub.app.data.repo.ScannedProduct): FoodCandidate {
+        val f = p.food
+        val c = fromFood(f, p.portions)
+        return if (f.source == com.lifehub.app.data.model.FoodSource.OFF && f.barcode != null) c.copy(ref = FoodRefs.off(f.barcode), source = EntrySource.OPEN_FOOD_FACTS) else c
+    }
+
     /** Household measures that apply to [c]: its own, its base food's, then the generic ones. */
     fun measuresFor(c: FoodCandidate, all: List<HouseholdMeasure>): List<MeasureInfo> = all.mapNotNull { m ->
         when {

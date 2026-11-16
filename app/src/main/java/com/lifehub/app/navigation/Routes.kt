@@ -26,7 +26,7 @@ object Routes {
     const val FOOD_ADD = "food/add?date={date}"
     const val FOOD_DETAIL = "food/detail/{foodId}?date={date}&entryId={entryId}"
     const val FOOD_CUSTOM = "food/custom?foodId={foodId}&barcode={barcode}"
-    const val FOOD_SCAN = "food/scan?date={date}"
+    const val FOOD_SCAN = "food/scan?date={date}&pick={pick}"
     const val BODY = "body"
     const val BODY_EDIT = "body/edit?date={date}"
     const val SETTINGS = "settings"
@@ -74,6 +74,8 @@ object Routes {
         return if (q.isEmpty()) "food/custom" else "food/custom?" + q.joinToString("&")
     }
     fun foodScan(date: LocalDate) = "food/scan?date=${date.toEpochDay()}"
+    /** The scanner in "pick" mode: the product goes back to the copilot chat as an attachment. */
+    fun foodScanPick() = "food/scan?pick=true"
     fun bodyEdit(date: LocalDate) = "body/edit?date=${date.toEpochDay()}"
     fun copilot(threadId: String? = null) = if (threadId == null) "copilot" else "copilot?threadId=$threadId"
 

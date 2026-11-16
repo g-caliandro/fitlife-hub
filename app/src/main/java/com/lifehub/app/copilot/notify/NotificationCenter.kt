@@ -7,6 +7,7 @@ import com.lifehub.app.copilot.capture.PendingInputStore
 import com.lifehub.app.core.time.TimeSource
 import com.lifehub.app.data.model.CaptureStatus
 import com.lifehub.app.data.model.ChatOrigin
+import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.data.model.FoodEntry
 import com.lifehub.app.data.model.PendingStatus
 import com.lifehub.app.navigation.Routes
@@ -34,6 +35,8 @@ class NotificationCenter(
     private val sink: NotificationSink,
     private val enabled: () -> Boolean,
     private val time: TimeSource,
+    /** Body-weight rows the capture wrote (phase 5). */
+    private val weights: suspend (captureId: String) -> List<BodyEntry> = { emptyList() },
 ) : CaptureNotifier, CaptureEvents {
 
     override suspend fun publish(captureId: String) {
@@ -44,11 +47,12 @@ class NotificationCenter(
         when (c.status) {
             CaptureStatus.CANCELLED -> sink.cancel(tag)
             CaptureStatus.FAILED -> if (enabled()) sink.post(CopilotNotificationContent.error(c, Routes.COPILOT_INBOX))
-            CaptureStatus.DONE -> if (enabled()) sink.post(CopilotNotificationContent.outcome(c, entries(c.id), thread))
+            CaptureStatus.DONE -> if (enabled()) sink.post(CopilotNotificationContent.outcome(c, entries(c.id), thread, weights(c.id), time.today()))
             CaptureStatus.AWAITING_INPUT -> {
                 if (!enabled()) return
                 val logged = entries(c.id)
-                if (logged.isNotEmpty()) sink.post(CopilotNotificationContent.outcome(c, logged, thread)) else sink.cancel(tag)
+                val weighed = weights(c.id)
+                if (logged.isNotEmpty() || weighed.isNotEmpty()) sink.post(CopilotNotificationContent.outcome(c, logged, thread, weighed, time.today())) else sink.cancel(tag)
                 pending.byCapture(c.id).filter { it.status == PendingStatus.OPEN && it.notifiedAt == null }.forEach { p ->
                     if (pending.markNotified(p.id, time.now())) sink.post(CopilotNotificationContent.needsAnswer(p, Routes.COPILOT_INBOX))
                 }

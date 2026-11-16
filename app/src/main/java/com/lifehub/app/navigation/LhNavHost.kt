@@ -159,10 +159,10 @@ fun LhNavHost(
         composable(Routes.FOOD_ADD, arguments = listOf(longArg("date"))) { AddFoodRoute(nav, back) }
         composable(Routes.FOOD_DETAIL, arguments = listOf(strArg("foodId", nullable = false), longArg("date"), strArg("entryId"))) { FoodDetailRoute(nav, back) }
         composable(Routes.FOOD_CUSTOM, arguments = listOf(strArg("foodId"), strArg("barcode"))) { CustomFoodRoute(back) }
-        composable(Routes.FOOD_SCAN, arguments = listOf(longArg("date"))) { entry ->
+        composable(Routes.FOOD_SCAN, arguments = listOf(longArg("date"), navArgument("pick") { type = NavType.BoolType; defaultValue = false })) { entry ->
             val d = entry.arguments?.getLong("date") ?: -1L
             val ctx = androidx.compose.ui.platform.LocalContext.current
-            ScanRoute(if (d < 0) ctx.container.time.today() else java.time.LocalDate.ofEpochDay(d), nav, back)
+            ScanRoute(if (d < 0) ctx.container.time.today() else java.time.LocalDate.ofEpochDay(d), nav, back, pick = entry.arguments?.getBoolean("pick") ?: false)
         }
         composable(Routes.BODY) { BodyListRoute(nav, back) }
         composable(Routes.BODY_EDIT, arguments = listOf(longArg("date"))) { BodyEditRoute(back) }

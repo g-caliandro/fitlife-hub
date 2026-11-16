@@ -98,6 +98,18 @@ data class PendingInputCard(
     val itemName: String? = null,
 ) : ChatCard
 
+/**
+ * "Weight logged": [weightKg] on [date]; [previousWeightKg] = the weight that day had before (replaced), null for a new
+ * day. Undo acts on the whole capture ([captureId]) and restores the previous row exactly.
+ */
+@Serializable
+data class WeightLoggedCard(
+    val captureId: String,
+    val date: String,
+    val weightKg: Double,
+    val previousWeightKg: Double? = null,
+) : ChatCard
+
 /** "Product": name, brand, values per 100 g and known portions (no actions). */
 @Serializable
 data class ProductCard(
@@ -118,6 +130,7 @@ object CardCodec {
     const val MEAL_LOGGED = "meal_logged"
     const val PENDING_INPUT = "pending_input"
     const val PRODUCT = "product"
+    const val WEIGHT_LOGGED = "weight_logged"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun encode(card: ChatCard): Pair<String, String> = when (card) {
@@ -125,6 +138,7 @@ object CardCodec {
         is MealLoggedCard -> MEAL_LOGGED to json.encodeToString(MealLoggedCard.serializer(), card)
         is PendingInputCard -> PENDING_INPUT to json.encodeToString(PendingInputCard.serializer(), card)
         is ProductCard -> PRODUCT to json.encodeToString(ProductCard.serializer(), card)
+        is WeightLoggedCard -> WEIGHT_LOGGED to json.encodeToString(WeightLoggedCard.serializer(), card)
     }
 
     /** Unknown types or unreadable payloads (e.g. written by a newer version) decode to null and are not drawn. */
@@ -136,6 +150,7 @@ object CardCodec {
                 MEAL_LOGGED -> json.decodeFromString(MealLoggedCard.serializer(), payload)
                 PENDING_INPUT -> json.decodeFromString(PendingInputCard.serializer(), payload)
                 PRODUCT -> json.decodeFromString(ProductCard.serializer(), payload)
+                WEIGHT_LOGGED -> json.decodeFromString(WeightLoggedCard.serializer(), payload)
                 else -> null
             }
         }.getOrNull()

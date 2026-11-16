@@ -47,7 +47,8 @@ import java.time.LocalDate
 /** One row of the chat list. Tool calls without a card and empty assistant messages are not shown. */
 sealed interface ChatItem {
     val key: String
-    data class User(override val key: String, val text: String) : ChatItem
+    /** [attachment] = name of the scanned product attached to this message (design doc §8), shown under the text. */
+    data class User(override val key: String, val text: String, val attachment: String? = null) : ChatItem
     data class Assistant(override val key: String, val text: String) : ChatItem
     data class Card(override val key: String, val card: ChatCard) : ChatItem
 }
@@ -58,6 +59,9 @@ sealed interface ChatProblem {
     /** The last turn failed ([message] is user-readable); [retryable] shows a Retry button. */
     data class Failed(val message: String, val retryable: Boolean, val network: Boolean) : ChatProblem
 }
+
+/** A product scanned in the composer, waiting to be sent with the next message. */
+data class ChatAttachment(val foodId: String, val label: String, val incomplete: Boolean = false)
 
 data class ChatUiState(
     val today: LocalDate,
@@ -74,12 +78,14 @@ data class ChatUiState(
     val pending: Map<String, PendingInput> = emptyMap(),
     /** Captures the user undid: their "Meal logged" cards show "Undone". */
     val undoneCaptures: Set<String> = emptySet(),
+    /** The product attached to the message being composed (null = none). */
+    val attachment: ChatAttachment? = null,
 )
 
 /** Messages of a thread -> visible rows (user text, assistant text, native cards from tool results). */
-fun chatItems(messages: List<ChatMessage>): List<ChatItem> = messages.sortedBy { it.seq }.mapNotNull { m ->
+fun chatItems(messages: List<ChatMessage>, attachments: Map<String, String> = emptyMap()): List<ChatItem> = messages.sortedBy { it.seq }.mapNotNull { m ->
     when (m.role) {
-        ChatRole.USER -> m.text?.let { ChatItem.User(m.id, it) }
+        ChatRole.USER -> m.text?.let { ChatItem.User(m.id, it, m.captureId?.let(attachments::get)) }
         ChatRole.ASSISTANT -> m.text?.takeIf { it.isNotBlank() }?.let { ChatItem.Assistant(m.id, it) }
         ChatRole.TOOL -> CardCodec.decode(m.cardType, m.cardJson)?.let { ChatItem.Card(m.id, it) }
     }
@@ -99,7 +105,13 @@ class ChatViewModel(
     private val runner: CaptureRunner? = null,
     private val newSession: ((onAutoStop: () -> Unit) -> RecordingSession)? = null,
     inboxCount: Flow<Int> = flowOf(0),
+    /** Name of an attached product by food id (null when it no longer exists). */
+    private val attachmentLoader: suspend (String) -> ChatAttachment? = { null },
+    /** Scanner results (food ids) for this chat; [onPickConsumed] clears the one-shot after it is taken. */
+    picks: Flow<String?> = flowOf(null),
+    private val onPickConsumed: () -> Unit = {},
 ) : ViewModel() {
+    private val attachment = MutableStateFlow<ChatAttachment?>(null)
     private val threadId = MutableStateFlow(requestedThreadId)
     private val working = MutableStateFlow(false)
     private val stage = MutableStateFlow(CaptureStage.THINKING)
@@ -110,17 +122,28 @@ class ChatViewModel(
     init {
         // Single thread UI for now: reopen the most recent chat thread (the threads list comes in phase 6).
         if (requestedThreadId == null) viewModelScope.launch { chat.latestThread(ChatOrigin.CHAT)?.let { if (threadId.value == null) threadId.value = it.id } }
+        viewModelScope.launch {
+            picks.collect { id ->
+                if (id == null) return@collect
+                attachment.value = attachmentLoader(id)
+                onPickConsumed()
+            }
+        }
     }
 
+    fun removeAttachment() { attachment.value = null }
+
     val state: StateFlow<ChatUiState> = combine(
-        threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else chat.observeMessages(id) }.map(::chatItems),
+        threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else chat.observeMessages(id) },
         threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else pendingStore.observeByThread(id) },
         threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else captures.observeByThread(id) },
         working, problem,
-    ) { items, pend, caps, w, p ->
-        ChatUiState(time.today(), items, w, problem = p, pending = pend.associateBy { it.id }, undoneCaptures = caps.filter { it.status == CaptureStatus.CANCELLED }.map { it.id }.toSet())
+    ) { msgs, pend, caps, w, p ->
+        val labels = caps.mapNotNull { c -> c.attachedFoodId?.let { id -> attachmentLoader(id)?.let { c.id to it.label } } }.toMap()
+        ChatUiState(time.today(), items = chatItems(msgs, labels), working = w, problem = p, pending = pend.associateBy { it.id }, undoneCaptures = caps.filter { it.status == CaptureStatus.CANCELLED }.map { it.id }.toSet())
     }
         .combine(combine(stage, recording, inboxCount, ::Triple)) { s, (st, rec, inbox) -> s.copy(stage = st, recording = rec, inboxCount = inbox) }
+        .combine(attachment) { s, a -> s.copy(attachment = a) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState(time.today(), problem = problem.value))
 
     /** Re-checks the key (e.g. back from Copilot settings). */
@@ -134,10 +157,12 @@ class ChatViewModel(
         val t = text.trim()
         if (t.isEmpty() || working.value) return false
         if (!hasKey()) { problem.value = ChatProblem.MissingKey; return false }
+        val attached = attachment.value?.foodId
+        attachment.value = null
         turn {
             val id = threadId.value ?: chat.createThread(t.take(60), ChatOrigin.CHAT, time.now()).id.also { threadId.value = it }
             // Every chat message that can write goes through a capture (idempotent writes, Undo, pending requests).
-            processor.submitText(id, t).turn
+            processor.submitText(id, t, attachedFoodId = attached).turn
         }
         return true
     }
@@ -175,9 +200,11 @@ class ChatViewModel(
         recording.value = null
         val file = s.stop() ?: return
         val v = voice ?: return
+        val attached = attachment.value?.foodId
+        attachment.value = null
         launchTurn {
             val id = threadId.value ?: chat.createThread(VOICE_TITLE, ChatOrigin.CHAT, time.now()).id.also { threadId.value = it }
-            runVoice(v.saveInThread(id, file).id)
+            runVoice(v.saveInThread(id, file, attached).id)
         }
     }
 
@@ -245,7 +272,9 @@ class ChatViewModel(
                     { c.secrets.get(SecretNames.LLM_API_KEY) != null }, c.time, handle.get<String>("threadId"),
                     voice = c.voiceCaptures, runner = c.captureRunner,
                     newSession = { stop -> RecordingSession(c.newVoiceRecorder(), c.captureAudio, c.appScope, onAutoStop = { c.appScope.launch(kotlinx.coroutines.Dispatchers.Main) { stop() } }) },
-                    inboxCount = inboxBadge(c.pendingInputs, c.captures))
+                    inboxCount = inboxBadge(c.pendingInputs, c.captures),
+                    attachmentLoader = { id -> c.foodCatalog.food(id)?.let { ChatAttachment(it.id, it.name + (it.brand?.let { b -> " ($b)" } ?: ""), it.incomplete) } },
+                    picks = com.lifehub.app.feature.food.ScanPick.foodId, onPickConsumed = com.lifehub.app.feature.food.ScanPick::consume)
             }
         }
     }

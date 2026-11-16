@@ -140,6 +140,17 @@ class FoodLogWriter(private val db: LifeHubDatabase) {
         writes.filter { it.tableName == TABLE_ENTRIES && it.op == WriteOp.INSERT }.forEach { w ->
             if (entries.get(w.recordId) != null) { entries.delete(w.recordId); removed++ }
         }
+        // Body weight (owner decision 5): a new day's row is deleted, an overwritten day gets its previous row back exactly
+        // (muscle, fat and updatedAt included). A row the user changed after the capture is left alone.
+        writes.filter { it.tableName == BodyLogWriter.TABLE_BODY }.forEach { w ->
+            val date = java.time.LocalDate.parse(w.recordId)
+            val written = w.newJson?.let(BodyLogWriter::parse)
+            val current = db.bodyDao().get(date)
+            if (current != null && written != null && current.weightKg == written.weightKg && current.updatedAt == written.updatedAt) {
+                val prev = w.prevJson?.let(BodyLogWriter::parse)
+                if (w.op == WriteOp.INSERT || prev == null) db.bodyDao().delete(date) else db.bodyDao().upsert(prev)
+            }
+        }
         writes.filter { it.tableName == TABLE_PORTIONS && it.op == WriteOp.INSERT }.forEach { portions.deletePortion(it.recordId) }
         writes.filter { it.tableName == TABLE_FOODS && it.op == WriteOp.UPDATE }.forEach { w ->
             val f = foods.get(w.recordId) ?: return@forEach

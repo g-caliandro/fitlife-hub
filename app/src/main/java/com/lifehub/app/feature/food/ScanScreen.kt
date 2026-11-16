@@ -55,11 +55,23 @@ import com.lifehub.app.core.designsystem.components.LhButton
 import com.lifehub.app.core.designsystem.components.LhButtonVariant
 import com.lifehub.app.core.designsystem.components.LhEmptyState
 import com.lifehub.app.core.designsystem.components.LhTopBar
-import com.lifehub.app.data.off.OffResult
+import com.lifehub.app.data.repo.FoodLookup
+import com.lifehub.app.data.repo.ProductLookup
 import com.lifehub.app.navigation.Routes
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.concurrent.Executors
+
+/**
+ * One-shot result of the scanner opened from the copilot chat ("pick" mode): the id of the cached food the user scanned.
+ * Same pattern as [com.lifehub.app.navigation.DiaryJump]; the chat consumes it when it is shown again.
+ */
+object ScanPick {
+    private val _foodId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val foodId: kotlinx.coroutines.flow.StateFlow<String?> = _foodId
+    fun set(id: String) { _foodId.value = id }
+    fun consume() { _foodId.value = null }
+}
 
 /** What the scanner screen shows. */
 sealed interface ScanUi {
@@ -74,7 +86,7 @@ sealed interface ScanUi {
 }
 
 @Composable
-fun ScanRoute(date: LocalDate, onNavigate: (String) -> Unit, onBack: () -> Unit) {
+fun ScanRoute(date: LocalDate, onNavigate: (String) -> Unit, onBack: () -> Unit, pick: Boolean = false) {
     val ctx = LocalContext.current
     val c = ctx.container
     val scope = rememberCoroutineScope()
@@ -92,15 +104,19 @@ fun ScanRoute(date: LocalDate, onNavigate: (String) -> Unit, onBack: () -> Unit)
         if (lookup != null) return
         lookup = ScanUi.Looking(code)
         scope.launch {
-            val local = c.food.getByBarcode(code)
-            if (local != null) { onNavigate(Routes.replace(Routes.foodDetail(local.id, date))); return@launch }
-            when (val r = c.off.byBarcode(code)) {
-                is OffResult.Ok -> {
-                    val f = r.value
-                    if (f == null) lookup = ScanUi.NotFound(code)
-                    else onNavigate(Routes.replace(Routes.foodDetail(c.food.saveFood(f).id, date)))
+            if (pick) {
+                // Copilot chat: the product goes back to the composer as an attachment instead of opening the food detail.
+                when (val r = c.barcodeLookup.findProduct(code)) {
+                    is ProductLookup.Found -> { ScanPick.set(c.barcodeLookup.cache(r.product).id); onBack() }
+                    ProductLookup.NotFound -> lookup = ScanUi.NotFound(code)
+                    is ProductLookup.Failed -> lookup = ScanUi.Failed(code, r.message)
                 }
-                is OffResult.Error -> lookup = ScanUi.Failed(code, r.message)
+                return@launch
+            }
+            when (val r = c.barcodeLookup.findFood(code)) {
+                is FoodLookup.Found -> onNavigate(Routes.replace(Routes.foodDetail(r.food.id, date)))
+                FoodLookup.NotFound -> lookup = ScanUi.NotFound(code)
+                is FoodLookup.Failed -> lookup = ScanUi.Failed(code, r.message)
             }
         }
     }
@@ -116,6 +132,7 @@ fun ScanRoute(date: LocalDate, onNavigate: (String) -> Unit, onBack: () -> Unit)
         onOpenSettings = { ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
         onRetry = { lookup = null },
         onCreateCustom = { code -> onNavigate(Routes.replace(Routes.foodCustom(barcode = code))) },
+        allowCustom = !pick,
         camera = { CameraPreview(enabled = lookup == null, onBarcode = ::onCode) },
     )
 }
@@ -124,6 +141,8 @@ fun ScanRoute(date: LocalDate, onNavigate: (String) -> Unit, onBack: () -> Unit)
 fun ScanScreen(
     ui: ScanUi, onBack: () -> Unit, onRequestPermission: () -> Unit, onOpenSettings: () -> Unit,
     onRetry: () -> Unit, onCreateCustom: (String) -> Unit, camera: @Composable () -> Unit = {},
+    /** False when the scanner picks a product for the copilot chat: no "create custom food" there. */
+    allowCustom: Boolean = true,
 ) {
     val c = LhTheme.colors
     Column(Modifier.fillMaxSize().background(c.background)) {
@@ -152,13 +171,13 @@ fun ScanScreen(
                 }
                 is ScanUi.NotFound -> Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LhEmptyState("Product not found", description = "${ui.code} isn't in Open Food Facts yet. Add it as a custom food.")
-                    LhButton("Create custom food", { onCreateCustom(ui.code) }, leadingIcon = Icons.Outlined.Add)
+                    if (allowCustom) LhButton("Create custom food", { onCreateCustom(ui.code) }, leadingIcon = Icons.Outlined.Add)
                     LhButton("Scan again", onRetry, variant = LhButtonVariant.Tonal)
                 }
                 is ScanUi.Failed -> Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LhEmptyState("Lookup failed", description = ui.message)
                     LhButton("Try again", onRetry, variant = LhButtonVariant.Tonal)
-                    LhButton("Create custom food", { onCreateCustom(ui.code) }, variant = LhButtonVariant.Outline, leadingIcon = Icons.Outlined.Add)
+                    if (allowCustom) LhButton("Create custom food", { onCreateCustom(ui.code) }, variant = LhButtonVariant.Outline, leadingIcon = Icons.Outlined.Add)
                 }
             }
         }
