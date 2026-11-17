@@ -72,7 +72,8 @@ class CaptureRunner(
         // 2. The user message, once per capture (a retry never appends it twice).
         if (chat.messages(threadId).none { it.role == ChatRole.USER && it.captureId == captureId }) {
             chat.append(threadId, NewChatMessage(ChatRole.USER, text, captureId = captureId), time.now())
-            if (c.origin == ChatOrigin.QUICK) chat.setTitle(threadId, threadTitle(text))
+            // A quick capture's thread, or a chat thread started by voice, takes the transcript as its title (no model call).
+            if (c.origin == ChatOrigin.QUICK || chat.thread(threadId)?.title == VOICE_TITLE) chat.setTitle(threadId, threadTitle(text))
         }
 
         // 3. The agent turn (tools filtered by origin inside the processor).
@@ -113,6 +114,9 @@ class CaptureRunner(
     }
 
     companion object {
+        /** Placeholder title of a chat thread whose first message is a voice message (until the transcript exists). */
+        const val VOICE_TITLE = "Voice message"
+
         fun threadTitle(text: String): String {
             val t = text.trim().replace(Regex("\\s+"), " ")
             return if (t.length <= 60) t else t.take(59).trimEnd() + "…"

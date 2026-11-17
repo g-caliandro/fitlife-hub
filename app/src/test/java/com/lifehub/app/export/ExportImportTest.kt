@@ -95,7 +95,7 @@ class ExportImportTest {
     }
 
     @Test fun rejectsBadSchemaAndGarbage() {
-        val bad = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 8", "\"schemaVersion\": 99")
+        val bad = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 9", "\"schemaVersion\": 99")
         assertThrows(ImportException::class.java) { JsonCodec.decode(bad) }
         assertThrows(ImportException::class.java) { JsonCodec.decode("not json") }
         assertThrows(ImportException::class.java) { JsonCodec.decode("{\"foo\":1}") }
@@ -123,7 +123,7 @@ class ExportImportTest {
         val withNulls = s.copy(quickAdds = s.quickAdds + com.lifehub.app.data.model.QuickAddEntry(
             "x", java.time.LocalDate.parse("2026-11-02"), "Pizza out", 1050, null, null, null, false, java.time.Instant.ofEpochMilli(7)))
         val text = JsonCodec.encode(withNulls, at, "x")
-        assertTrue(text.contains("\"schemaVersion\": 8")); assertFalse(text.contains("\"macros\": ["))
+        assertTrue(text.contains("\"schemaVersion\": 9")); assertFalse(text.contains("\"macros\": ["))
         assertTrue(text.contains("\"quickAdds\""))
         val back = JsonCodec.decode(text).quickAdds.single { it.id == "x" }
         assertEquals("Pizza out", back.name); assertNull(back.proteinG); assertNull(back.carbsG); assertNull(back.fatG); assertEquals(1050, back.kcal)
@@ -131,7 +131,7 @@ class ExportImportTest {
     }
 
     @Test fun v1ImportStillWorks() {
-        val v1 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 8", "\"schemaVersion\": 1")
+        val v1 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 9", "\"schemaVersion\": 1")
         val s = JsonCodec.decode(v1)
         assertEquals(snap.achievements.size, s.achievements.size)
         val minimal = """{"schemaVersion":1,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r"}"""
@@ -139,7 +139,7 @@ class ExportImportTest {
     }
 
     @Test fun v3ImportHasNoFood() {
-        val v3 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 8", "\"schemaVersion\": 3")
+        val v3 = JsonCodec.encode(snap, at, "x").replaceFirst("\"schemaVersion\": 9", "\"schemaVersion\": 3")
         val s = JsonCodec.decode(v3)   // unknown/extra keys are ignored; older files simply lack foods
         assertEquals(snap.quickAdds.size, s.quickAdds.size)
         val old = """{"schemaVersion":3,"exportedAt":"2026-11-12T10:00:00Z","app":{},"readme":"r"}"""

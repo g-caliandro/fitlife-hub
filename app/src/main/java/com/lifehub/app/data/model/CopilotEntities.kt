@@ -191,3 +191,43 @@ data class BaseFood(
     val fat100: Double,
     val sourceRef: String?,
 )
+
+// ---------------------------------------------------------------------------------------------------------------
+// v10 (phase 6): workout plan drafts and user memory.
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * DRAFT = waiting for the user's decision. APPROVED = turned into active plans ([PlanDraft.approvedPlanIds]).
+ * REJECTED = refused by the user. SUPERSEDED = replaced by a newer draft of the copilot. Only DRAFT can change, and the
+ * copilot never brings a decided draft back (owner decision 3, design doc §7).
+ */
+enum class PlanDraftStatus { DRAFT, APPROVED, REJECTED, SUPERSEDED }
+
+/**
+ * A workout plan proposed by the copilot (owner decision 3): optional goal with deadline (start + [weeks] weeks) and
+ * weekday plans with exercises, sets and targets, all in [payloadJson] ([com.lifehub.app.copilot.plan.DraftPayload]).
+ * Never read by any code that treats plans as active: a draft becomes plans only through Approve. Not exported.
+ */
+@Entity(tableName = "plan_drafts", indices = [Index("status")])
+data class PlanDraft(
+    @PrimaryKey val id: String,
+    val threadId: String?,
+    val captureId: String?,
+    val title: String,
+    val goalName: String?,
+    val weeks: Int?,
+    val payloadJson: String,
+    val status: PlanDraftStatus,
+    val createdAt: Instant,
+    val decidedAt: Instant? = null,
+    /** Comma-separated ids of the plans created by Approve. */
+    val approvedPlanIds: String? = null,
+)
+
+/** One short, stable fact about the user (goals, equipment, training days, preferences, disliked foods, levels). */
+@Entity(tableName = "user_memory")
+data class UserMemory(
+    @PrimaryKey val key: String,
+    val value: String,
+    val updatedAt: Instant,
+)

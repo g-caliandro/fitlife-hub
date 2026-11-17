@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.Scale
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -42,7 +43,7 @@ import com.lifehub.app.core.designsystem.components.*
 import kotlinx.coroutines.delay
 
 @Composable
-fun CopilotSettingsRoute(onBack: () -> Unit, onOpenMeasures: () -> Unit = {}) {
+fun CopilotSettingsRoute(onBack: () -> Unit, onOpenMeasures: () -> Unit = {}, onOpenMemory: () -> Unit = {}) {
     val c = LocalContext.current.container
     val vm: CopilotSettingsViewModel = viewModel(factory = CopilotSettingsViewModel.factory(c))
     val state by vm.ui.collectAsState()
@@ -54,7 +55,7 @@ fun CopilotSettingsRoute(onBack: () -> Unit, onOpenMeasures: () -> Unit = {}) {
         onSaveLlmKey = vm::saveLlmKey, onRemoveLlmKey = vm::removeLlmKey,
         onSttBaseUrl = vm::setSttBaseUrl, onSttModel = vm::setSttModel, onSttLanguage = vm::setSttLanguage,
         onSaveSttKey = vm::saveSttKey, onRemoveSttKey = vm::removeSttKey,
-        onTest = vm::testConnection, onOpenMeasures = onOpenMeasures,
+        onTest = vm::testConnection, onOpenMeasures = onOpenMeasures, onOpenMemory = onOpenMemory,
         onNotifications = { on ->
             vm.setNotificationsEnabled(on)
             if (on && !com.lifehub.app.notifications.Notifier.hasPermission(ctx)) askNotif()
@@ -72,6 +73,7 @@ fun CopilotSettingsScreen(
     onSaveSttKey: (String) -> Unit = {}, onRemoveSttKey: () -> Unit = {},
     onTest: () -> Unit = {},
     onOpenMeasures: () -> Unit = {},
+    onOpenMemory: () -> Unit = {},
     onNotifications: (Boolean) -> Unit = {},
 ) {
     val s = state.settings
@@ -123,6 +125,14 @@ fun CopilotSettingsScreen(
                     "Household measures", Modifier.testTag("copilot-measures"),
                     subtitle = "Grams per spoon, glass, slice, piece", leadingIcon = Icons.Outlined.Scale,
                     onClick = onOpenMeasures, showDivider = false,
+                )
+            }
+            LhSectionHeader("Memory")
+            LhGroupCard(Modifier.fillMaxWidth()) {
+                LhListRow(
+                    "What the copilot remembers", Modifier.testTag("copilot-memory"),
+                    subtitle = "Goals, equipment, training days, preferences, disliked foods", leadingIcon = Icons.Outlined.Psychology,
+                    onClick = onOpenMemory, showDivider = false,
                 )
             }
             Text("Food values for unpackaged foods: USDA FoodData Central (SR Legacy), public domain.", style = LhType.captionMuted, modifier = Modifier.padding(top = 8.dp, start = 4.dp))

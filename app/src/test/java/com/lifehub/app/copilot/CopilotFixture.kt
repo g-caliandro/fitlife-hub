@@ -74,13 +74,23 @@ class CopilotFixture(seed: Boolean = true) {
     val offBarcodes = FakeOffBarcodes()
     val barcodes = BarcodeLookup(food, offApi, offBarcodes, db, time)
     val bodyLog = BodyLogWriter(db)
-    /** Read tools + food tools + body tools, as in AppContainer. */
+    // Phase 6: plan drafts, user memory, meal suggestions.
+    val drafts = com.lifehub.app.copilot.plan.PlanDraftStoreImpl(db)
+    val memory = com.lifehub.app.copilot.memory.UserMemoryStoreImpl(db)
+    val suggestions = com.lifehub.app.copilot.tools.MealSuggestions(captures, writer, time)
+    /** Every copilot tool, as in AppContainer. */
     val fullRegistry = ToolRegistry(
-        ReadTools.all(food, { settings.current() }, goals, plans, sessions, body) +
+        ReadTools.all(food, { settings.current() }, goals, plans, sessions, body, drafts) +
             FoodTools.all(resolver, refs, catalog, writer, captures, pending, food, barcodes, offCache) { settings.current() } +
-            BodyTools.all(bodyLog, captures),
+            BodyTools.all(bodyLog, captures) +
+            com.lifehub.app.copilot.tools.PlanTools.all(drafts, goals) { db.exerciseDao().findByName(it) } +
+            listOf(
+                com.lifehub.app.copilot.tools.SuggestMealTool(refs, food, memory) { settings.current() },
+                com.lifehub.app.copilot.tools.SaveUserMemoryTool(memory),
+            ),
     )
-    fun agent(llm: LlmClient) = AgentLoop(llm, fullRegistry, chat, time)
+    /** The agent as in AppContainer (user memory injected in every request). */
+    fun agent(llm: LlmClient) = AgentLoop(llm, fullRegistry, chat, time, contextProviders = listOf(com.lifehub.app.copilot.memory.MemoryContext(memory)))
     fun processor(llm: LlmClient, deleteAudio: (String) -> Unit = { runCatching { java.io.File(it).delete() } }) =
         CaptureProcessor(captures, pending, writer, agent(llm), chat, time, attached = AttachedProductContext(catalog), deleteAudio = deleteAudio)
 

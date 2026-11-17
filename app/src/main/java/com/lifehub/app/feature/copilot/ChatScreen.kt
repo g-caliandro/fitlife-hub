@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Stop
@@ -103,7 +104,11 @@ fun ChatRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
         actions = CardActions(
             onUndo = vm::undo, onChoose = { id, i -> vm.answer(id, option = i) },
             onReply = { id, t -> vm.answer(id, text = t) }, onDiscard = vm::discard,
+            onRejectDraft = vm::rejectDraft, onOpenDraft = { onNavigate(Routes.planDraft(it)) },
+            onLogSuggestion = vm::logSuggestion,
         ),
+        onOpenThreads = { onNavigate(Routes.COPILOT_THREADS) },
+        onApproveDraft = vm::approveDraft,
     )
 }
 
@@ -124,13 +129,24 @@ fun ChatScreen(
     onOpenInbox: () -> Unit = {},
     onBarcode: () -> Unit = {},
     onRemoveAttachment: () -> Unit = {},
+    onOpenThreads: () -> Unit = {},
+    /** Approve confirmed in the dialog: draft id + whether to archive the active plans on the same weekdays. */
+    onApproveDraft: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val c = LhTheme.colors
+    var approving by rememberSaveable { mutableStateOf<String?>(null) }
+    approving?.let { id ->
+        com.lifehub.app.feature.plans.ApproveDraftDialog(
+            overlapping = state.drafts[id]?.overlapping.orEmpty(),
+            onConfirm = { archive -> onApproveDraft(id, archive); approving = null }, onDismiss = { approving = null },
+        )
+    }
     val list = rememberLazyListState()
     val rows = state.items.size + (if (state.working) 1 else 0) + (if (state.problem != null) 1 else 0)
     LaunchedEffect(rows) { if (rows > 0) list.animateScrollToItem(rows - 1) }
     Column(Modifier.fillMaxSize().background(c.background).imePadding()) {
         LhTopBar("Copilot", onBack = onBack, icon = Icons.Outlined.AutoAwesome, actions = {
+            LhIconAction(Icons.Outlined.History, "Conversations", onOpenThreads, Modifier.testTag("chat-threads"))
             InboxAction(state.inboxCount, onOpenInbox)
             LhIconAction(Icons.Outlined.Settings, "Copilot settings", onOpenSettings, Modifier.testTag("chat-settings"))
         })
@@ -157,6 +173,9 @@ fun ChatScreen(
                             is PendingInputCard -> PendingInputCardView(card, state.pending[card.pendingInputId], enabled = !state.working, actions)
                             is ProductCard -> ProductCardView(card)
                             is WeightLoggedCard -> WeightLoggedCardView(card, card.captureId in state.undoneCaptures, state.today, actions.onUndo)
+                            is com.lifehub.app.copilot.agent.PlanDraftCard -> PlanDraftCardView(card, state.drafts[card.draftId], enabled = !state.working,
+                                actions.copy(onApproveDraft = { approving = card.draftId }))
+                            is com.lifehub.app.copilot.agent.MealSuggestionCard -> MealSuggestionCardView(card, state.captureStatus[card.captureId], enabled = !state.working, state.today, actions, onOpenDiary)
                         }
                     }
                 }

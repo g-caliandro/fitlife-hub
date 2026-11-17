@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 class ImportException(message: String) : Exception(message)
 
 object JsonCodec {
-    const val SCHEMA_VERSION = 8
+    const val SCHEMA_VERSION = 9
     private const val MIN_SCHEMA_VERSION = 1
 
     val README = "Life Hub export. All personal fitness data of one user. `goals` are objectives with a time window " +
@@ -40,8 +40,9 @@ object JsonCodec {
         "`foodPortions` are named portions of a food in grams (`kind` PACKAGE = the whole pack, SERVING, PIECE, USER; one " +
         "`isDefault`); `householdMeasures` are grams per spoon/glass/slice/piece, generic or for one food; foodEntries written " +
         "by the copilot carry provenance: `loggedAt` (meal date and time, epoch millis), `source` (HISTORY, BASE_TABLE, " +
-        "OPEN_FOOD_FACTS, LLM_ESTIMATE), `servings` + `portionLabel` + `portionGrams` (portion or measure used). Copilot chats " +
-        "and captures are not exported."
+        "OPEN_FOOD_FACTS, LLM_ESTIMATE), `servings` + `portionLabel` + `portionGrams` (portion or measure used). Since schemaVersion 9: " +
+        "`userMemory` holds the copilot's short facts about the user (`key`, `value`, `updatedAt`). Copilot chats, captures, " +
+        "plan drafts and API keys are not exported."
 
     val json = Json {
         prettyPrint = true; encodeDefaults = true; explicitNulls = true
@@ -112,6 +113,7 @@ object JsonCodec {
         householdMeasures = s.measures?.sortedBy { it.id }?.map {
             HouseholdMeasureDto(it.id, it.label, it.grams, it.foodId, it.baseFoodId, it.updatedAt.toEpochMilli())
         },
+        userMemory = s.memory?.sortedBy { it.key }?.map { UserMemoryDto(it.key, it.value, it.updatedAt.toEpochMilli()) },
     )
 
     fun encode(s: DataSnapshot, exportedAt: ZonedDateTime, appVersion: String): String =
@@ -185,6 +187,7 @@ object JsonCodec {
             },
             portions = d.foodPortions.map { FoodPortion(it.id, it.foodId, it.label, it.grams, it.isDefault, it.kind, inst(it.createdAt)) },
             measures = d.householdMeasures?.map { HouseholdMeasure(it.id, it.label, it.grams, it.foodId, it.baseFoodId, inst(it.updatedAt)) },
+            memory = d.userMemory?.map { UserMemory(it.key, it.value, inst(it.updatedAt)) },
             achievements = d.achievements.distinctBy { it.dedupeKey }.map {
                 Achievement(it.id, it.kind, it.title, it.detail, it.value, it.unit, it.exerciseId?.takeIf { e -> e in exerciseIds },
                     it.goalId?.takeIf { g -> g in goalIds }, it.sessionId?.takeIf { x -> x in sessionIds },

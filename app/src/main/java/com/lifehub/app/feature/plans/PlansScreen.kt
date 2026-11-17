@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -72,10 +73,16 @@ data class PlanRowModel(
     val estMinutes: Int = 0,
 )
 
-data class PlansUiState(val plans: List<PlanRowModel> = emptyList(), val todayIso: Int = 1)
+/** A copilot plan draft waiting for approval (phase 6); shown above the plans, never counted as one. */
+data class DraftRowModel(val id: String, val title: String, val planCount: Int, val weekdays: Set<Int>)
 
-class PlansViewModel(plans: PlanRepository, goals: GoalRepository, private val time: TimeSource) : ViewModel() {
-    val state: StateFlow<PlansUiState> = combine(plans.observePlans(), goals.observeGoals()) { ps, gs ->
+data class PlansUiState(val plans: List<PlanRowModel> = emptyList(), val todayIso: Int = 1, val drafts: List<DraftRowModel> = emptyList())
+
+class PlansViewModel(
+    plans: PlanRepository, goals: GoalRepository, private val time: TimeSource,
+    drafts: kotlinx.coroutines.flow.Flow<List<com.lifehub.app.data.model.PlanDraft>> = kotlinx.coroutines.flow.flowOf(emptyList()),
+) : ViewModel() {
+    val state: StateFlow<PlansUiState> = combine(plans.observePlans(), goals.observeGoals(), drafts) { ps, gs, ds ->
         val linkedNames = HashMap<String, MutableList<String>>()
         // Chips show active goals only (achieved/archived ones are history, not what the plan works towards).
         gs.filter { it.goal.state == com.lifehub.app.data.model.GoalState.ACTIVE }
@@ -88,11 +95,14 @@ class PlansViewModel(plans: PlanRepository, goals: GoalRepository, private val t
                 )
             },
             time.today().dayOfWeek.value,
+            ds.map { d -> com.lifehub.app.copilot.plan.DraftCodec.decode(d).let { DraftRowModel(d.id, d.title, it.plans.size, it.weekdays) } },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlansUiState())
 
     companion object {
-        fun factory(c: AppContainer) = viewModelFactory { initializer { PlansViewModel(c.plans, c.goals, c.time) } }
+        fun factory(c: AppContainer) = viewModelFactory {
+            initializer { PlansViewModel(c.plans, c.goals, c.time, c.planDrafts.observeAll().let { f -> kotlinx.coroutines.flow.flow { f.collect { l -> emit(l.filter { it.status == com.lifehub.app.data.model.PlanDraftStatus.DRAFT }) } } }) }
+        }
     }
 }
 
@@ -104,11 +114,12 @@ fun PlansRoute(onNavigate: (String) -> Unit) {
     PlansScreen(
         st, onOpen = { onNavigate(Routes.plan(it)) }, onAdd = { onNavigate(Routes.planEdit()) },
         onStart = { onNavigate(Routes.workoutStart()) }, onStartPlan = { onNavigate(Routes.workoutStart(it)) }, onExercises = { onNavigate(Routes.EXERCISES) },
+        onOpenDraft = { onNavigate(Routes.planDraft(it)) },
     )
 }
 
 @Composable
-fun PlansScreen(st: PlansUiState, onOpen: (String) -> Unit, onAdd: () -> Unit, onStart: () -> Unit, onExercises: () -> Unit, onStartPlan: (String) -> Unit = {}) {
+fun PlansScreen(st: PlansUiState, onOpen: (String) -> Unit, onAdd: () -> Unit, onStart: () -> Unit, onExercises: () -> Unit, onStartPlan: (String) -> Unit = {}, onOpenDraft: (String) -> Unit = {}) {
     var showArchived by rememberSaveable { mutableStateOf(false) }
     val active = st.plans.filter { !it.isArchived }
     val archived = st.plans.filter { it.isArchived }
@@ -117,6 +128,10 @@ fun PlansScreen(st: PlansUiState, onOpen: (String) -> Unit, onAdd: () -> Unit, o
             actions = { com.lifehub.app.core.designsystem.components.LhIconAction(Icons.Outlined.Add, "Add plan", onAdd) })
         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = com.lifehub.app.core.designsystem.components.LocalTabBottomPadding.current), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { LhButton("Start workout", onStart, Modifier.fillMaxWidth(), size = LhButtonSize.Lg, leadingIcon = Icons.Outlined.PlayArrow) }
+            if (st.drafts.isNotEmpty()) {
+                item { LhSectionHeader("Drafts from the copilot", topPadding = 12.dp) }
+                items(st.drafts, key = { "draft-" + it.id }) { DraftRow(it, onOpenDraft) }
+            }
             item { LhSectionHeader("Plans", topPadding = 12.dp) }
             if (active.isEmpty()) {
                 item {
@@ -187,5 +202,22 @@ private fun GoalChip(text: String, modifier: Modifier = Modifier) {
             text, style = LhType.labelSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
+    }
+}
+
+/** A copilot draft waiting for approval: opens the draft screen (Approve / Reject / Delete). */
+@Composable
+private fun DraftRow(d: DraftRowModel, onOpen: (String) -> Unit) {
+    val c = LhTheme.colors
+    LhCard(Modifier.fillMaxWidth().testTag("draft-row-${d.id}"), onClick = { onOpen(d.id) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LhIconSquare(androidx.compose.material.icons.Icons.Outlined.EditNote)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(d.title, style = LhType.bodyLarge, color = c.foreground, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("${d.planCount} ${if (d.planCount == 1) "plan" else "plans"} · ${fmtWeekdays(d.weekdays)}", style = LhType.body, color = c.mutedForeground, maxLines = 1)
+            }
+            LhBadge("Draft", variant = LhBadgeVariant.Warning)
+        }
     }
 }

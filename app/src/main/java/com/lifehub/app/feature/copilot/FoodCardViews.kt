@@ -58,6 +58,12 @@ data class CardActions(
     val onChoose: (pendingId: String, option: Int) -> Unit = { _, _ -> },
     val onReply: (pendingId: String, text: String) -> Unit = { _, _ -> },
     val onDiscard: (pendingId: String) -> Unit = {},
+    /** Plan draft card: Approve opens the confirmation with the "archive plans on the same days" checkbox. */
+    val onApproveDraft: (draftId: String) -> Unit = {},
+    val onRejectDraft: (draftId: String) -> Unit = {},
+    val onOpenDraft: (draftId: String) -> Unit = {},
+    /** Meal suggestion card: "Log as meal". */
+    val onLogSuggestion: (com.lifehub.app.copilot.agent.MealSuggestionCard) -> Unit = {},
 )
 
 /** Grams with one decimal, like the per-item macros everywhere in the copilot. */

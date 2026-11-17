@@ -75,7 +75,7 @@ class Migration8To9Test {
             execSQL("INSERT INTO chat_messages (id, threadId, seq, role, text, toolCallsJson, toolCallId, toolName, cardType, cardJson, captureId, createdAt) VALUES ('m1', 't1', 0, 'USER', 'Ciao', NULL, NULL, NULL, NULL, NULL, NULL, 2)")
         }
         val db = Room.databaseBuilder(ctx, LifeHubDatabase::class.java, dbName)
-            .addMigrations(LifeHubDatabase.MIGRATION_8_9).allowMainThreadQueries().build()
+            .addMigrations(LifeHubDatabase.MIGRATION_8_9, LifeHubDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
 
         assertEquals("Muscle up", db.goalDao().get("g1")!!.name)
         assertEquals(setOf(1, 4), db.planDao().getAll().single().weekdays)

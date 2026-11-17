@@ -48,8 +48,9 @@ import com.lifehub.app.data.model.WorkoutSession
     entities = [Goal::class, Plan::class, GoalPlanLink::class, Exercise::class, PlanExercise::class,
         WorkoutSession::class, SessionSet::class, QuickAddEntry::class, BodyEntry::class, Achievement::class, Food::class, FoodEntry::class,
         ChatThread::class, ChatMessage::class,
-        Capture::class, CaptureWrite::class, PendingInput::class, FoodPortion::class, HouseholdMeasure::class, BaseFood::class],
-    version = 9, exportSchema = true,
+        Capture::class, CaptureWrite::class, PendingInput::class, FoodPortion::class, HouseholdMeasure::class, BaseFood::class,
+        com.lifehub.app.data.model.PlanDraft::class, com.lifehub.app.data.model.UserMemory::class],
+    version = 10, exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class LifeHubDatabase : RoomDatabase() {
@@ -67,11 +68,13 @@ abstract class LifeHubDatabase : RoomDatabase() {
     abstract fun pendingInputDao(): PendingInputDao
     abstract fun portionDao(): PortionDao
     abstract fun baseFoodDao(): BaseFoodDao
+    abstract fun planDraftDao(): com.lifehub.app.data.db.dao.PlanDraftDao
+    abstract fun userMemoryDao(): com.lifehub.app.data.db.dao.UserMemoryDao
 
     companion object {
         fun build(context: Context): LifeHubDatabase =
             Room.databaseBuilder(context, LifeHubDatabase::class.java, "lifehub.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .addCallback(SEED_CALLBACK).build()
 
         fun inMemory(context: Context): LifeHubDatabase =
@@ -81,6 +84,18 @@ abstract class LifeHubDatabase : RoomDatabase() {
         val SEED_CALLBACK = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 HouseholdMeasureSeed.insertSql().forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * v10 (copilot phase 6): `plan_drafts` (copilot workout plan drafts, never read as active plans) and `user_memory`
+         * (short key/value facts). New tables only; existing data is untouched.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `plan_drafts` (`id` TEXT NOT NULL, `threadId` TEXT, `captureId` TEXT, `title` TEXT NOT NULL, `goalName` TEXT, `weeks` INTEGER, `payloadJson` TEXT NOT NULL, `status` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `decidedAt` INTEGER, `approvedPlanIds` TEXT, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_drafts_status` ON `plan_drafts` (`status`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `user_memory` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`key`))")
             }
         }
 

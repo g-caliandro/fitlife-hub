@@ -43,10 +43,10 @@ object ReadTools {
 
     fun all(
         food: FoodRepository, settings: () -> Settings, goals: GoalRepository, plans: PlanRepository,
-        sessions: SessionRepository, body: BodyRepository,
+        sessions: SessionRepository, body: BodyRepository, drafts: com.lifehub.app.copilot.plan.PlanDraftStore? = null,
     ): List<CopilotTool> = listOf(
         GetDailySummary(food, settings), GetNutritionTargets(settings), GetGoals(goals, plans),
-        GetPlannedWorkouts(plans, sessions), GetWorkoutPlan(plans, goals), GetBodyWeight(body),
+        GetPlannedWorkouts(plans, sessions), GetWorkoutPlan(plans, goals, drafts), GetBodyWeight(body),
     )
 }
 
@@ -205,10 +205,15 @@ class GetPlannedWorkouts(private val plans: PlanRepository, private val sessions
     }
 }
 
-class GetWorkoutPlan(private val plans: PlanRepository, private val goals: GoalRepository) : CopilotTool {
+class GetWorkoutPlan(
+    private val plans: PlanRepository,
+    private val goals: GoalRepository,
+    private val drafts: com.lifehub.app.copilot.plan.PlanDraftStore? = null,
+) : CopilotTool {
     override val name = "get_workout_plan"
     override val description = "The active workout plans (several can be active, each repeats on its weekdays) with " +
-        "exercises, sets, targets, weights and rest, plus linked goals. Targets are raised automatically after good sessions."
+        "exercises, sets, targets, weights and rest, plus linked goals, and the copilot's plan drafts with their status " +
+        "(draft = waiting for approval; approved, rejected, superseded = decided). Targets are raised automatically after good sessions."
     override val kind = ToolKind.READ
     override val schema = ToolSchema.EMPTY
 
@@ -218,8 +223,18 @@ class GetWorkoutPlan(private val plans: PlanRepository, private val goals: GoalR
             .groupBy({ it.first }, { it.second })
         return ToolOutcome.Ok(buildJsonObject {
             put("plans", buildJsonArray { active.forEach { add(planJson(it, goalsByPlan[it.plan.id].orEmpty())) } })
+            if (drafts != null) {
+                // Open drafts in full; the most recent decided ones as a header only (never to be proposed again as they were).
+                val all = drafts.all()
+                val open = all.filter { it.status == com.lifehub.app.data.model.PlanDraftStatus.DRAFT }
+                val decided = all.filter { it.status != com.lifehub.app.data.model.PlanDraftStatus.DRAFT }.take(MAX_DECIDED_DRAFTS)
+                put("drafts", JsonArray(open.map { PlanTools.json(it, full = true) } + decided.map { PlanTools.json(it, full = false) }))
+                put("drafts_note", "Drafts are NOT active plans. Rejected and superseded drafts are closed: never bring them back.")
+            }
         })
     }
+
+    private companion object { const val MAX_DECIDED_DRAFTS = 5 }
 
     private fun planJson(p: PlanWithExercises, goalNames: List<String>): JsonObject = buildJsonObject {
         put("plan_id", p.plan.id); put("name", p.plan.name)

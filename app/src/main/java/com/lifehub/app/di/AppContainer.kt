@@ -92,13 +92,22 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
     /** Scanner (app) and copilot barcode lookup; the scanner's "pick" mode and `get_product_by_barcode` use it. */
     val barcodeLookup = BarcodeLookup(food, off, OffBarcodeClient(), db, time)
     val bodyLog = BodyLogWriter(db)
-    /** All copilot tools. Phases 5-6 append their write / draft tools here. */
+    /** Phase 6: plan drafts (never active without Approve) and user memory (injected in every request, capped). */
+    val planDrafts: com.lifehub.app.copilot.plan.PlanDraftStore = com.lifehub.app.copilot.plan.PlanDraftStoreImpl(db)
+    val userMemory: com.lifehub.app.copilot.memory.UserMemoryStore = com.lifehub.app.copilot.memory.UserMemoryStoreImpl(db)
+    val mealSuggestions = com.lifehub.app.copilot.tools.MealSuggestions(captures, foodLog, time)
+    /** All copilot tools. */
     val copilotTools = ToolRegistry(
-        ReadTools.all(food, { settings.current() }, goals, plans, sessions, body) +
+        ReadTools.all(food, { settings.current() }, goals, plans, sessions, body, planDrafts) +
             FoodTools.all(foodResolver, foodRefs, foodCatalog, foodLog, captures, pendingInputs, food, barcodeLookup, offCandidates) { settings.current() } +
-            BodyTools.all(bodyLog, captures),
+            BodyTools.all(bodyLog, captures) +
+            com.lifehub.app.copilot.tools.PlanTools.all(planDrafts, goals) { db.exerciseDao().findByName(it) } +
+            listOf(
+                com.lifehub.app.copilot.tools.SuggestMealTool(foodRefs, food, userMemory) { settings.current() },
+                com.lifehub.app.copilot.tools.SaveUserMemoryTool(userMemory),
+            ),
     )
-    val agent = AgentLoop(llm, copilotTools, chat, time)
+    val agent = AgentLoop(llm, copilotTools, chat, time, contextProviders = listOf(com.lifehub.app.copilot.memory.MemoryContext(userMemory)))
 
     // Phase 4: voice, background worker, notifications.
     val transcriber: Transcriber = WhisperApiTranscriber(

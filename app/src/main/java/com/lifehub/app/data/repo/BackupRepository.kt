@@ -29,6 +29,7 @@ class BackupRepositoryImpl(
             achievements = db.achievementDao().getAll(),
             foods = db.foodDao().getAll(), foodEntries = db.foodEntryDao().getAll(),
             portions = db.portionDao().allPortions(), measures = db.portionDao().measures(),
+            memory = db.userMemoryDao().all(),
         )
     }
 
@@ -68,6 +69,8 @@ class BackupRepositoryImpl(
             db.portionDao().insertPortions(snapshot.portions.filter { it.foodId in foodIds })
             // Household measures are settings-like: replaced only when the file has them; "Delete all data" keeps them.
             snapshot.measures?.let { db.portionDao().deleteAllMeasures(); db.portionDao().insertMeasures(it) }
+            // Copilot user memory: same rule (replaced only when the file has it; "Delete all data" keeps it, like chats).
+            snapshot.memory?.let { db.userMemoryDao().deleteAll(); db.userMemoryDao().insertAll(it) }
         }
         settings.replace(snapshot.settings)
     }

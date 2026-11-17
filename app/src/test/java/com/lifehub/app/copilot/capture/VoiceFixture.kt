@@ -38,23 +38,14 @@ class RecordingSink : NotificationSink {
     override fun cancel(tag: String) { cancelled += tag; visible.remove(tag) }
 }
 
-/** Stand-in for phase 6's `save_user_memory`: a chat-only tool that a quick capture must never be offered. */
-object ChatOnlyMemoryTool : CopilotTool {
-    override val name = "save_user_memory"
-    override val description = "test"
-    override val kind = ToolKind.WRITE
-    override val schema = ToolSchema(emptyList())
-    override val chatOnly = true
-    override suspend fun execute(args: ToolArgs, ctx: ToolContext) = ToolOutcome.Ok(buildJsonObject { })
-}
-
 /** Phase 4 wiring over [CopilotFixture] (as in AppContainer), with a fake transcriber, fake sink and a recording scheduler. */
 class VoiceFixture(val f: CopilotFixture, llm: LlmClient, val stt: FakeTranscriber, audioDir: File) {
     val sink = RecordingSink()
     var notificationsEnabled = true
     val enqueued = mutableListOf<String>()
     val scheduler = CaptureScheduler { enqueued += it }
-    val registry = ToolRegistry(f.fullRegistry.tools + ChatOnlyMemoryTool)
+    /** The real tool set, which includes the chat-only `save_user_memory` (phase 6). */
+    val registry = f.fullRegistry
     val center = NotificationCenter(f.captures, f.pending, { f.db.foodEntryDao().byCapture(it) }, sink, { notificationsEnabled }, f.time, { f.bodyLog.entriesOf(it) })
     val processor = CaptureProcessor(f.captures, f.pending, f.writer, AgentLoop(llm, registry, f.chat, f.time), f.chat, f.time, center, AttachedProductContext(f.catalog))
     val runner = CaptureRunner(f.captures, f.chat, processor, stt, { "it" }, f.time, center)

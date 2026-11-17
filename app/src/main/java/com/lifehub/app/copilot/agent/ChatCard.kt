@@ -124,6 +124,67 @@ data class ProductCard(
     val incomplete: Boolean = false,
 ) : ChatCard
 
+/** One exercise row of a "Plan draft" card: "Pull-up · 4 × 8"; [isNew] = not in the app yet (created on Approve). */
+@Serializable
+data class DraftExerciseView(val name: String, val summary: String, val isNew: Boolean = false)
+
+@Serializable
+data class DraftPlanView(val name: String, val weekdays: String, val exercises: List<DraftExerciseView>)
+
+/**
+ * "Plan draft": the sessions (weekday plans) with exercises, sets and targets, the goal and its duration. Its live status
+ * (draft / approved / rejected / superseded) comes from the store. Actions: Approve, Reject, Open draft.
+ */
+@Serializable
+data class PlanDraftCard(
+    val draftId: String,
+    val title: String,
+    val goalName: String? = null,
+    val weeks: Int? = null,
+    val plans: List<DraftPlanView>,
+) : ChatCard
+
+/**
+ * One item of a "Meal suggestion": [grams] and the kcal/macros the app computed from the resolved food ([food], kept so
+ * "Log as meal" writes exactly this food and these grams).
+ */
+@Serializable
+data class SuggestionItemView(
+    val name: String,
+    val brand: String? = null,
+    val grams: Double,
+    val kcal: Double,
+    val proteinG: Double,
+    val carbsG: Double,
+    val fatG: Double,
+    val source: String,
+    val food: com.lifehub.app.copilot.food.FoodCandidate,
+)
+
+/**
+ * "Meal suggestion": a dish proposed for [date] from the day's remaining amounts. Totals are sums of the items; the
+ * `remaining*` values are the day's remaining BEFORE this meal (null = no target / unknown), used for the coverage line.
+ * "Log as meal" writes it now through a capture with Undo ([suggestionId] gives that capture its id).
+ */
+@Serializable
+data class MealSuggestionCard(
+    val suggestionId: String,
+    val title: String,
+    val date: String,
+    val items: List<SuggestionItemView>,
+    val totalKcal: Double,
+    val totalProteinG: Double,
+    val totalCarbsG: Double,
+    val totalFatG: Double,
+    val kcalRemaining: Int? = null,
+    val proteinRemainingG: Int? = null,
+    val carbsRemainingG: Int? = null,
+    val fatRemainingG: Int? = null,
+) : ChatCard {
+    /** The capture "Log as meal" creates: one per suggestion, so a second tap never logs it twice. */
+    val captureId: String get() = "sugg-$suggestionId"
+}
+
 /** Card <-> (type, JSON) for [com.lifehub.app.data.model.ChatMessage.cardType]/[com.lifehub.app.data.model.ChatMessage.cardJson]. */
 object CardCodec {
     const val DAILY_SUMMARY = "daily_summary"
@@ -131,6 +192,8 @@ object CardCodec {
     const val PENDING_INPUT = "pending_input"
     const val PRODUCT = "product"
     const val WEIGHT_LOGGED = "weight_logged"
+    const val PLAN_DRAFT = "plan_draft"
+    const val MEAL_SUGGESTION = "meal_suggestion"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun encode(card: ChatCard): Pair<String, String> = when (card) {
@@ -139,6 +202,8 @@ object CardCodec {
         is PendingInputCard -> PENDING_INPUT to json.encodeToString(PendingInputCard.serializer(), card)
         is ProductCard -> PRODUCT to json.encodeToString(ProductCard.serializer(), card)
         is WeightLoggedCard -> WEIGHT_LOGGED to json.encodeToString(WeightLoggedCard.serializer(), card)
+        is PlanDraftCard -> PLAN_DRAFT to json.encodeToString(PlanDraftCard.serializer(), card)
+        is MealSuggestionCard -> MEAL_SUGGESTION to json.encodeToString(MealSuggestionCard.serializer(), card)
     }
 
     /** Unknown types or unreadable payloads (e.g. written by a newer version) decode to null and are not drawn. */
@@ -151,6 +216,8 @@ object CardCodec {
                 PENDING_INPUT -> json.decodeFromString(PendingInputCard.serializer(), payload)
                 PRODUCT -> json.decodeFromString(ProductCard.serializer(), payload)
                 WEIGHT_LOGGED -> json.decodeFromString(WeightLoggedCard.serializer(), payload)
+                PLAN_DRAFT -> json.decodeFromString(PlanDraftCard.serializer(), payload)
+                MEAL_SUGGESTION -> json.decodeFromString(MealSuggestionCard.serializer(), payload)
                 else -> null
             }
         }.getOrNull()

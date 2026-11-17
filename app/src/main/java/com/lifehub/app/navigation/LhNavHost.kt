@@ -170,10 +170,13 @@ fun LhNavHost(
         composable(Routes.YOU) { YouRoute(nav, back) }
         composable(Routes.TARGETS) { TargetsRoute(back) }
         composable(Routes.SETTINGS_NOTIFICATIONS) { NotificationsRoute(back) }
-        composable(Routes.SETTINGS_COPILOT) { CopilotSettingsRoute(back, onOpenMeasures = { nav(Routes.SETTINGS_COPILOT_MEASURES) }) }
+        composable(Routes.SETTINGS_COPILOT) { CopilotSettingsRoute(back, onOpenMeasures = { nav(Routes.SETTINGS_COPILOT_MEASURES) }, onOpenMemory = { nav(Routes.SETTINGS_COPILOT_MEMORY) }) }
         composable(Routes.SETTINGS_COPILOT_MEASURES) { com.lifehub.app.feature.settings.HouseholdMeasuresRoute(back) }
         composable(Routes.COPILOT, arguments = listOf(strArg("threadId"))) { ChatRoute(nav, back) }
         composable(Routes.COPILOT_INBOX) { com.lifehub.app.feature.copilot.InboxRoute(nav, back) }
+        composable(Routes.COPILOT_THREADS) { com.lifehub.app.feature.copilot.ThreadsRoute(nav, back) }
+        composable(Routes.SETTINGS_COPILOT_MEMORY) { com.lifehub.app.feature.settings.UserMemoryRoute(back) }
+        composable(Routes.PLAN_DRAFT, arguments = listOf(strArg("draftId", nullable = false))) { com.lifehub.app.feature.plans.PlanDraftRoute(back) }
         composable(Routes.SETTINGS_DATA) { DataRoute(back) }
         composable(Routes.ABOUT) { AboutRoute(back) }
         composable(Routes.ACHIEVEMENTS) { AchievementsRoute(nav, back) }

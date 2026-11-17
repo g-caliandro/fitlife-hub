@@ -29,6 +29,8 @@ data class ExportV1(
     val foodPortions: List<FoodPortionDto> = emptyList(),
     /** null in files before schemaVersion 8: the importing phone keeps its own measures. */
     val householdMeasures: List<HouseholdMeasureDto>? = null,
+    /** Copilot user memory (schemaVersion 9); null in older files: the importing phone keeps its own. */
+    val userMemory: List<UserMemoryDto>? = null,
 )
 
 @Serializable data class AppInfoDto(val name: String = "Life Hub", val version: String = "")
@@ -155,3 +157,6 @@ data class FoodPortionDto(val id: String, val foodId: String, val label: String,
 
 @Serializable
 data class HouseholdMeasureDto(val id: String, val label: String, val grams: Double, val foodId: String? = null, val baseFoodId: String? = null, val updatedAt: Long = 0)
+
+@Serializable
+data class UserMemoryDto(val key: String, val value: String, val updatedAt: Long = 0)

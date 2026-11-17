@@ -80,6 +80,10 @@ data class ChatUiState(
     val undoneCaptures: Set<String> = emptySet(),
     /** The product attached to the message being composed (null = none). */
     val attachment: ChatAttachment? = null,
+    /** Live state of the plan drafts shown as cards (approved / rejected elsewhere = updated here too). */
+    val drafts: Map<String, DraftLive> = emptyMap(),
+    /** Status of this thread's captures by id (meal suggestion cards: logged / undone / failed). */
+    val captureStatus: Map<String, CaptureStatus> = emptyMap(),
 )
 
 /** Messages of a thread -> visible rows (user text, assistant text, native cards from tool results). */
@@ -110,9 +114,16 @@ class ChatViewModel(
     /** Scanner results (food ids) for this chat; [onPickConsumed] clears the one-shot after it is taken. */
     picks: Flow<String?> = flowOf(null),
     private val onPickConsumed: () -> Unit = {},
+    /** Phase 6: plan drafts (card status, Approve / Reject) and the active plans an Approve may archive. */
+    private val drafts: com.lifehub.app.copilot.plan.PlanDraftStore? = null,
+    plans: com.lifehub.app.data.repo.PlanRepository? = null,
+    private val suggestions: com.lifehub.app.copilot.tools.MealSuggestions? = null,
+    /** Thread chosen in the conversations list (a thread id, or [NEW_THREAD]); [onThreadPickConsumed] clears it. */
+    threadPicks: Flow<String?> = flowOf(null),
+    private val onThreadPickConsumed: () -> Unit = {},
 ) : ViewModel() {
     private val attachment = MutableStateFlow<ChatAttachment?>(null)
-    private val threadId = MutableStateFlow(requestedThreadId)
+    private val threadId = MutableStateFlow(requestedThreadId?.takeIf { it != NEW_THREAD })
     private val working = MutableStateFlow(false)
     private val stage = MutableStateFlow(CaptureStage.THINKING)
     private val recording = MutableStateFlow<RecordingLevel?>(null)
@@ -120,8 +131,26 @@ class ChatViewModel(
     private val problem = MutableStateFlow<ChatProblem?>(if (hasKey()) null else ChatProblem.MissingKey)
 
     init {
-        // Single thread UI for now: reopen the most recent chat thread (the threads list comes in phase 6).
+        // No thread asked: reopen the most recent chat thread. NEW_THREAD: start empty (created on the first message).
         if (requestedThreadId == null) viewModelScope.launch { chat.latestThread(ChatOrigin.CHAT)?.let { if (threadId.value == null) threadId.value = it.id } }
+        viewModelScope.launch {
+            threadPicks.collect { id ->
+                if (id == null) return@collect
+                if (!working.value) {
+                    attachment.value = null
+                    problem.value = if (hasKey()) null else ChatProblem.MissingKey
+                    threadId.value = id.takeIf { it != NEW_THREAD }
+                }
+                onThreadPickConsumed()
+            }
+        }
+        // The open thread was deleted from the conversations list: back to an empty chat (a new thread on the next message).
+        viewModelScope.launch {
+            chat.observeThreads().collect { list ->
+                val id = threadId.value ?: return@collect
+                if (list.none { it.id == id } && chat.thread(id) == null) threadId.value = null
+            }
+        }
         viewModelScope.launch {
             picks.collect { id ->
                 if (id == null) return@collect
@@ -144,7 +173,39 @@ class ChatViewModel(
     }
         .combine(combine(stage, recording, inboxCount, ::Triple)) { s, (st, rec, inbox) -> s.copy(stage = st, recording = rec, inboxCount = inbox) }
         .combine(attachment) { s, a -> s.copy(attachment = a) }
+        .combine(draftsLive(plans)) { s, d -> s.copy(drafts = d) }
+        .combine(threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else captures.observeByThread(id) }) { s, caps ->
+            s.copy(captureStatus = caps.associate { it.id to it.status })
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState(time.today(), problem = problem.value))
+
+    private fun draftsLive(plans: com.lifehub.app.data.repo.PlanRepository?): Flow<Map<String, DraftLive>> {
+        val store = drafts ?: return flowOf(emptyMap())
+        val active = plans?.observePlans() ?: flowOf(emptyList())
+        return combine(store.observeAll(), active) { ds, ps ->
+            ds.associate { d ->
+                d.id to DraftLive(d.status, com.lifehub.app.copilot.plan.overlappingPlans(com.lifehub.app.copilot.plan.DraftCodec.decode(d), ps).map { it.plan.name })
+            }
+        }
+    }
+
+    /** Approve confirmed on a plan draft card ([archiveOverlapping] = the opt-in checkbox, owner decision 4). */
+    fun approveDraft(draftId: String, archiveOverlapping: Boolean) {
+        val store = drafts ?: return
+        viewModelScope.launch { store.approve(draftId, archiveOverlapping, time.today(), time.now()) }
+    }
+
+    fun rejectDraft(draftId: String) {
+        val store = drafts ?: return
+        viewModelScope.launch { try { store.reject(draftId, time.now()) } catch (_: IllegalTransitionException) {} }
+    }
+
+    /** "Log as meal" on a suggestion card: writes it now through a capture of this thread (Undo on the card). */
+    fun logSuggestion(card: com.lifehub.app.copilot.agent.MealSuggestionCard) {
+        val s = suggestions ?: return
+        if (working.value) return
+        viewModelScope.launch { s.logAsMeal(card, threadId.value) }
+    }
 
     /** Re-checks the key (e.g. back from Copilot settings). */
     fun refreshKey() {
@@ -160,7 +221,8 @@ class ChatViewModel(
         val attached = attachment.value?.foodId
         attachment.value = null
         turn {
-            val id = threadId.value ?: chat.createThread(t.take(60), ChatOrigin.CHAT, time.now()).id.also { threadId.value = it }
+            // Title = the first message, cheaply (no model call).
+            val id = threadId.value ?: chat.createThread(CaptureRunner.threadTitle(t), ChatOrigin.CHAT, time.now()).id.also { threadId.value = it }
             // Every chat message that can write goes through a capture (idempotent writes, Undo, pending requests).
             processor.submitText(id, t, attachedFoodId = attached).turn
         }
@@ -264,7 +326,9 @@ class ChatViewModel(
     }
 
     companion object {
-        const val VOICE_TITLE = "Voice message"
+        const val VOICE_TITLE = CaptureRunner.VOICE_TITLE
+        /** `copilot?threadId=new`: open the chat on a new, empty conversation. */
+        const val NEW_THREAD = "new"
         fun factory(c: AppContainer) = viewModelFactory {
             initializer {
                 val handle: SavedStateHandle = createSavedStateHandle()
@@ -274,7 +338,9 @@ class ChatViewModel(
                     newSession = { stop -> RecordingSession(c.newVoiceRecorder(), c.captureAudio, c.appScope, onAutoStop = { c.appScope.launch(kotlinx.coroutines.Dispatchers.Main) { stop() } }) },
                     inboxCount = inboxBadge(c.pendingInputs, c.captures),
                     attachmentLoader = { id -> c.foodCatalog.food(id)?.let { ChatAttachment(it.id, it.name + (it.brand?.let { b -> " ($b)" } ?: ""), it.incomplete) } },
-                    picks = com.lifehub.app.feature.food.ScanPick.foodId, onPickConsumed = com.lifehub.app.feature.food.ScanPick::consume)
+                    picks = com.lifehub.app.feature.food.ScanPick.foodId, onPickConsumed = com.lifehub.app.feature.food.ScanPick::consume,
+                    drafts = c.planDrafts, plans = c.plans, suggestions = c.mealSuggestions,
+                    threadPicks = ThreadPick.threadId, onThreadPickConsumed = ThreadPick::consume)
             }
         }
     }

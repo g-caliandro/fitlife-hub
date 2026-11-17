@@ -42,6 +42,10 @@ object Routes {
     /** Copilot chat; no threadId = the most recent chat thread (a new one is created on the first message). */
     const val COPILOT = "copilot?threadId={threadId}"
     const val COPILOT_INBOX = "copilot/inbox"
+    const val COPILOT_THREADS = "copilot/threads"
+    const val SETTINGS_COPILOT_MEMORY = "settings/copilot/memory"
+    /** A copilot plan draft (Train > Drafts, or "Open draft" on the chat card). */
+    const val PLAN_DRAFT = "plans/draft/{draftId}"
     const val ABOUT = "about"
 
     val TAB_ROOTS = listOf(HOME_ROOT, CALENDAR, TRENDS, PLANS)
@@ -77,6 +81,7 @@ object Routes {
     /** The scanner in "pick" mode: the product goes back to the copilot chat as an attachment. */
     fun foodScanPick() = "food/scan?pick=true"
     fun bodyEdit(date: LocalDate) = "body/edit?date=${date.toEpochDay()}"
+    fun planDraft(id: String) = "plans/draft/$id"
     fun copilot(threadId: String? = null) = if (threadId == null) "copilot" else "copilot?threadId=$threadId"
 
     /** onNavigate prefix conventions handled by LhNavHost. */

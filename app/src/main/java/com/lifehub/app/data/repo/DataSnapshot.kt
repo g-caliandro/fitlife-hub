@@ -17,4 +17,6 @@ data class DataSnapshot(
     val portions: List<FoodPortion> = emptyList(),
     /** v9 household measures; null = not in the imported file (the current table is kept). */
     val measures: List<HouseholdMeasure>? = null,
+    /** v10 copilot user memory (decision 7); null = not in the imported file (the current memory is kept). */
+    val memory: List<UserMemory>? = null,
 )

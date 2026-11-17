@@ -68,7 +68,7 @@ class Migration7To8Test {
             execSQL("INSERT INTO body_entries (date, weightKg, muscleKg, fatKg, updatedAt) VALUES ($d, 77.4, 35.0, NULL, 0)")
         }
         val db = Room.databaseBuilder(ctx, LifeHubDatabase::class.java, dbName)
-            .addMigrations(LifeHubDatabase.MIGRATION_7_8, LifeHubDatabase.MIGRATION_8_9).allowMainThreadQueries().build()
+            .addMigrations(LifeHubDatabase.MIGRATION_7_8, LifeHubDatabase.MIGRATION_8_9, LifeHubDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
         assertEquals("Muscle up", db.goalDao().get("g1")!!.name)
         assertEquals(setOf(1, 4), db.planDao().getAll().single().weekdays)
         assertEquals(8, db.planDao().getAllExercises().single().targetValue)

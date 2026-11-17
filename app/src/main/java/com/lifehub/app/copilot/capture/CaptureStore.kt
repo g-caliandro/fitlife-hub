@@ -15,7 +15,7 @@ interface CaptureStore {
      * [audioPath]: a dictated capture (phase 4) whose text comes from the transcriber; [text] is then null.
      * [attachedFoodId]: the scanned product attached to the message (phase 5), a cached food.
      */
-    suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String? = null, attachedFoodId: String? = null): Capture
+    suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String? = null, attachedFoodId: String? = null, id: String = UUID.randomUUID().toString()): Capture
     suspend fun get(id: String): Capture?
     fun observe(id: String): Flow<Capture?>
     fun observeByThread(threadId: String): Flow<List<Capture>>
@@ -33,8 +33,8 @@ interface CaptureStore {
 class CaptureStoreImpl(db: LifeHubDatabase) : CaptureStore {
     private val dao = db.captureDao()
 
-    override suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String?, attachedFoodId: String?): Capture {
-        val c = Capture(UUID.randomUUID().toString(), threadId, origin, CaptureStatus.RECORDED, text, audioPath = audioPath, attachedFoodId = attachedFoodId, zoneId = zone.id, createdAt = now, updatedAt = now)
+    override suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String?, attachedFoodId: String?, id: String): Capture {
+        val c = Capture(id, threadId, origin, CaptureStatus.RECORDED, text, audioPath = audioPath, attachedFoodId = attachedFoodId, zoneId = zone.id, createdAt = now, updatedAt = now)
         dao.upsert(c)
         return c
     }
