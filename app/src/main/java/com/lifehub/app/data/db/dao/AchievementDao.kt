@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM achievements ORDER BY achievedOn DESC, createdAt DESC LIMIT :n") fun observeRecent(n: Int): Flow<List<Achievement>>
     @Query("SELECT * FROM achievements WHERE id = :id") suspend fun get(id: String): Achievement?
     @Query("SELECT * FROM achievements") suspend fun getAll(): List<Achievement>
-    @Query("SELECT dedupeKey FROM achievements") suspend fun getKeys(): List<String>
     /** Returns rowIds; -1 for rows ignored because of the unique dedupeKey. */
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertIgnore(items: List<Achievement>): List<Long>
     @Insert suspend fun insertAll(items: List<Achievement>)

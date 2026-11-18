@@ -66,7 +66,7 @@ data class CustomFoodForm(
         return Food(
             id = existing?.id ?: newId(), source = FoodSource.CUSTOM,
             barcode = barcode.trim().takeIf { it.isNotEmpty() }, name = name.trim(), brand = brand.trim().takeIf { it.isNotEmpty() },
-            kcal100 = num(kcal) ?: (4 * p + 4 * c + 9 * f), protein100 = p, carbs100 = c, fat100 = f,
+            kcal100 = num(kcal) ?: autoKcal(p, c, f), protein100 = p, carbs100 = c, fat100 = f,
             servingSizeG = num(serving)?.takeIf { it > 0 }, favorite = existing?.favorite ?: false, lastUsedAt = existing?.lastUsedAt,
         )
     }

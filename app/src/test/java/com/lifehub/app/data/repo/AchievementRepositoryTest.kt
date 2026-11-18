@@ -22,9 +22,9 @@ import java.time.ZoneOffset
 class AchievementRepositoryTest {
     private lateinit var db: LifeHubDatabase
     private lateinit var settings: SettingsRepository
-    private lateinit var repo: AchievementRepositoryImpl
-    private lateinit var goals: GoalRepositoryImpl
-    private lateinit var sessions: SessionRepositoryImpl
+    private lateinit var repo: AchievementRepository
+    private lateinit var goals: GoalRepository
+    private lateinit var sessions: SessionRepository
     private val today = LocalDate.of(2026, 11, 12)
     private val now = Instant.parse("2026-11-12T10:00:00Z")
     private val pu = "ex-pull-up"
@@ -33,7 +33,7 @@ class AchievementRepositoryTest {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = LifeHubDatabase.inMemory(ctx)
         settings = SettingsRepository(ctx).also { it.clear() }
-        repo = AchievementRepositoryImpl(db, settings); goals = GoalRepositoryImpl(db); sessions = SessionRepositoryImpl(db)
+        repo = AchievementRepository(db, settings); goals = GoalRepository(db); sessions = SessionRepository(db)
         runBlocking { db.exerciseDao().insertAll(MockDataGenerator.exercises) }
     }
     @After fun tearDown() { db.close() }

@@ -12,6 +12,7 @@ import com.lifehub.app.data.off.OffBarcodeSource
 import com.lifehub.app.data.off.OffProduct
 import com.lifehub.app.data.off.OffResult
 import java.util.UUID
+import com.lifehub.app.domain.autoKcal
 
 /** Result of the scanner screen's lookup: the product is a cached [Food] (what the food detail screen opens). */
 sealed interface FoodLookup {
@@ -80,7 +81,7 @@ class BarcodeLookup(
     private fun toScanned(p: OffProduct): ScannedProduct {
         val id = UUID.randomUUID().toString()
         val now = time.now()
-        val kcal = p.kcal100 ?: (4 * (p.protein100 ?: 0.0) + 4 * (p.carbs100 ?: 0.0) + 9 * (p.fat100 ?: 0.0))
+        val kcal = p.kcal100 ?: autoKcal(p.protein100 ?: 0.0, p.carbs100 ?: 0.0, p.fat100 ?: 0.0)
         val f = Food(
             id = id, source = FoodSource.OFF, barcode = p.code, name = p.name, brand = p.brand,
             kcal100 = kcal, protein100 = p.protein100 ?: 0.0, carbs100 = p.carbs100 ?: 0.0, fat100 = p.fat100 ?: 0.0,

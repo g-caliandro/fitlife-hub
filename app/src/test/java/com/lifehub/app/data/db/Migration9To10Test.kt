@@ -6,11 +6,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
-import com.lifehub.app.copilot.memory.UserMemoryStoreImpl
+import com.lifehub.app.copilot.memory.UserMemoryStore
 import com.lifehub.app.copilot.plan.DraftPayload
-import com.lifehub.app.copilot.plan.PlanDraftStoreImpl
+import com.lifehub.app.copilot.plan.PlanDraftStore
 import com.lifehub.app.data.model.PlanDraftStatus
-import com.lifehub.app.data.repo.ChatStoreImpl
+import com.lifehub.app.data.repo.ChatStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -97,14 +97,14 @@ class Migration9To10Test {
         val db = Room.databaseBuilder(ctx, LifeHubDatabase::class.java, dbName)
             .addMigrations(LifeHubDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
         assertEquals(before, dump(db.openHelper.readableDatabase, tables))
-        assertEquals("Ciao", ChatStoreImpl(db).messages("t1").single().text)
+        assertEquals("Ciao", ChatStore(db).messages("t1").single().text)
         assertEquals(setOf(1, 4), db.planDao().getAll().single().weekdays)
 
         // New tables: empty, then usable.
         assertTrue(db.planDraftDao().all().isEmpty()); assertTrue(db.userMemoryDao().all().isEmpty())
-        val draft = PlanDraftStoreImpl(db).propose("Bozza", DraftPayload(null, emptyList()), "t1", "c1", Instant.EPOCH)
+        val draft = PlanDraftStore(db).propose("Bozza", DraftPayload(null, emptyList()), "t1", "c1", Instant.EPOCH)
         assertEquals(PlanDraftStatus.DRAFT, db.planDraftDao().get(draft.id)!!.status)
-        UserMemoryStoreImpl(db).save("Attrezzatura", "sbarra, anelli", Instant.EPOCH)
+        UserMemoryStore(db).save("Attrezzatura", "sbarra, anelli", Instant.EPOCH)
         assertEquals("sbarra, anelli", db.userMemoryDao().get("attrezzatura")!!.value)
         db.close()
         ctx.deleteDatabase(dbName)

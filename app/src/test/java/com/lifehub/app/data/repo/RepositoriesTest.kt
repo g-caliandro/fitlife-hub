@@ -3,6 +3,7 @@ package com.lifehub.app.data.repo
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.lifehub.app.data.db.LifeHubDatabase
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.data.model.*
 import com.lifehub.app.data.prefs.SettingsRepository
 import com.lifehub.app.mock.MockDataGenerator
@@ -22,13 +23,13 @@ class RepositoriesTest {
     private lateinit var ctx: Context
     private lateinit var db: LifeHubDatabase
     private lateinit var settings: SettingsRepository
-    private lateinit var goals: GoalRepositoryImpl
-    private lateinit var plans: PlanRepositoryImpl
-    private lateinit var exercises: ExerciseRepositoryImpl
-    private lateinit var sessions: SessionRepositoryImpl
-    private lateinit var macros: QuickAddRepositoryImpl
-    private lateinit var body: BodyRepositoryImpl
-    private lateinit var backup: BackupRepositoryImpl
+    private lateinit var goals: GoalRepository
+    private lateinit var plans: PlanRepository
+    private lateinit var exercises: ExerciseRepository
+    private lateinit var sessions: SessionRepository
+    private lateinit var macros: QuickAddRepository
+    private lateinit var body: BodyDao
+    private lateinit var backup: BackupRepository
 
     private val now = Instant.parse("2026-11-12T10:00:00Z")
     private val today = LocalDate.of(2026, 11, 12)
@@ -39,9 +40,9 @@ class RepositoriesTest {
         ctx = ApplicationProvider.getApplicationContext()
         db = LifeHubDatabase.inMemory(ctx)
         settings = SettingsRepository(ctx).also { it.clear() }
-        goals = GoalRepositoryImpl(db); plans = PlanRepositoryImpl(db); exercises = ExerciseRepositoryImpl(db)
-        sessions = SessionRepositoryImpl(db); macros = QuickAddRepositoryImpl(db); body = BodyRepositoryImpl(db)
-        backup = BackupRepositoryImpl(db, settings)
+        goals = GoalRepository(db); plans = PlanRepository(db); exercises = ExerciseRepository(db)
+        sessions = SessionRepository(db); macros = QuickAddRepository(db); body = db.bodyDao()
+        backup = BackupRepository(db, settings)
         runBlocking { db.exerciseDao().insertAll(MockDataGenerator.exercises) }
     }
 

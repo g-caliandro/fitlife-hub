@@ -11,7 +11,7 @@ import com.lifehub.app.core.time.todayFlow
 import com.lifehub.app.core.ui.charts.ChartPoint
 import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.data.prefs.SettingsRepository
-import com.lifehub.app.data.repo.BodyRepository
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.data.repo.FoodRepository
 import com.lifehub.app.data.repo.PlanRepository
 import com.lifehub.app.data.repo.SessionRepository
@@ -60,7 +60,7 @@ class TrendsViewModel(
     plans: PlanRepository,
     sessions: SessionRepository,
     food: FoodRepository,
-    body: BodyRepository,
+    body: BodyDao,
     time: TimeSource,
     savedState: SavedStateHandle,
 ) : ViewModel() {

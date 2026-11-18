@@ -23,7 +23,7 @@ import java.util.zip.ZipInputStream
 @RunWith(RobolectricTestRunner::class)
 class ExportImportTest {
     private lateinit var db: LifeHubDatabase
-    private lateinit var backup: BackupRepositoryImpl
+    private lateinit var backup: BackupRepository
     private lateinit var settings: SettingsRepository
     private val zone = ZoneId.of("UTC")
     private val at = ZonedDateTime.of(2026, 11, 12, 10, 0, 0, 0, zone)
@@ -33,7 +33,7 @@ class ExportImportTest {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = LifeHubDatabase.inMemory(ctx)
         settings = SettingsRepository(ctx).also { it.clear() }
-        backup = BackupRepositoryImpl(db, settings)
+        backup = BackupRepository(db, settings)
     }
     @After fun tearDown() { db.close() }
 

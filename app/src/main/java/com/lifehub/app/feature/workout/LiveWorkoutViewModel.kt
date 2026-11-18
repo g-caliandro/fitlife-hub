@@ -188,7 +188,7 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
     /** F-ACH-3: compare against history before this session + earlier sets of this session. */
     private suspend fun celebrateIfPr(completed: SessionSet, sets: List<SessionSet>) {
         val earlier = sets.filter { it.exerciseId == completed.exerciseId && it.id != completed.id && it.status == SetStatus.DONE }
-        val prior = Bests.of(c.achievements.historySets(completed.exerciseId) + earlier)
+        val prior = Bests.of(c.sessions.historySets(completed.exerciseId) + earlier)
         val hit = AchievementEngine.liveHits(completed, prior).firstOrNull() ?: return
         val banner = PrBanner(now.toEpochMilli(), hit.bannerText)
         pr.value = banner
@@ -258,7 +258,7 @@ class LiveWorkoutViewModel(private val c: AppContainer, private val handle: Save
     suspend fun sessionPrTitles(): List<String> {
         val s = session ?: return emptyList()
         val sets = cur.sets
-        val priors = sets.map { it.exerciseId }.distinct().associateWith { Bests.of(c.achievements.historySets(it)) }
+        val priors = sets.map { it.exerciseId }.distinct().associateWith { Bests.of(c.sessions.historySets(it)) }
         return AchievementEngine.sessionPrs(s, sets.map { it.copy(sessionId = s.id) }, priors).map { it.title }
     }
 

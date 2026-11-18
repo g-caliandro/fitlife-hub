@@ -82,36 +82,17 @@ sealed interface ApproveResult {
  * Plan drafts (design doc §7 "Bozze di piano"). [propose] only ever writes `plan_drafts`; [approve] is the ONLY way a draft
  * reaches the `plans` table, in one transaction. Nothing here turns a decided draft back into a DRAFT.
  */
-interface PlanDraftStore {
-    fun observeAll(): Flow<List<PlanDraft>>
-    fun observe(id: String): Flow<PlanDraft?>
-    suspend fun all(): List<PlanDraft>
-    suspend fun get(id: String): PlanDraft?
-    suspend fun byCapture(captureId: String): List<PlanDraft>
-    /** Saves a new DRAFT; [replaces] (an open draft) becomes SUPERSEDED in the same transaction. */
-    suspend fun propose(title: String, payload: DraftPayload, threadId: String?, captureId: String?, now: Instant, replaces: String? = null): PlanDraft
-    /**
-     * Turns a DRAFT into active plans: missing exercises are created as custom exercises (by case-insensitive name), a new
-     * goal is created (start [today], deadline today + weeks) or the existing one linked, the plans and their exercises are
-     * added. Existing plans on the same weekdays are archived only when [archiveOverlapping] (owner decision 4).
-     */
-    suspend fun approve(id: String, archiveOverlapping: Boolean, today: LocalDate, now: Instant): ApproveResult
-    /** DRAFT -> REJECTED. Throws [IllegalTransitionException] for a decided draft. */
-    suspend fun reject(id: String, now: Instant): PlanDraft
-    /** Removes the draft row (workouts screen "Delete"); plans already created by an Approve stay. */
-    suspend fun delete(id: String)
-}
-
-class PlanDraftStoreImpl(private val db: LifeHubDatabase) : PlanDraftStore {
+class PlanDraftStore(private val db: LifeHubDatabase) {
     private val dao = db.planDraftDao()
 
-    override fun observeAll() = dao.observeAll()
-    override fun observe(id: String) = dao.observe(id)
-    override suspend fun all() = dao.all()
-    override suspend fun get(id: String) = dao.get(id)
-    override suspend fun byCapture(captureId: String) = dao.byCapture(captureId)
+    fun observeAll() = dao.observeAll()
+    fun observe(id: String) = dao.observe(id)
+    suspend fun all() = dao.all()
+    suspend fun get(id: String) = dao.get(id)
+    suspend fun byCapture(captureId: String) = dao.byCapture(captureId)
 
-    override suspend fun propose(title: String, payload: DraftPayload, threadId: String?, captureId: String?, now: Instant, replaces: String?): PlanDraft = db.withTransaction {
+    /** Saves a new DRAFT; [replaces] (an open draft) becomes SUPERSEDED in the same transaction. */
+    suspend fun propose(title: String, payload: DraftPayload, threadId: String?, captureId: String?, now: Instant, replaces: String? = null): PlanDraft = db.withTransaction {
         replaces?.let { old ->
             dao.get(old)?.takeIf { it.status == PlanDraftStatus.DRAFT }?.let { dao.upsert(it.copy(status = PlanDraftStatus.SUPERSEDED, decidedAt = now)) }
         }
@@ -123,7 +104,12 @@ class PlanDraftStoreImpl(private val db: LifeHubDatabase) : PlanDraftStore {
         d
     }
 
-    override suspend fun approve(id: String, archiveOverlapping: Boolean, today: LocalDate, now: Instant): ApproveResult = db.withTransaction {
+    /**
+     * Turns a DRAFT into active plans: missing exercises are created as custom exercises (by case-insensitive name), a new
+     * goal is created (start [today], deadline today + weeks) or the existing one linked, the plans and their exercises are
+     * added. Existing plans on the same weekdays are archived only when [archiveOverlapping] (owner decision 4).
+     */
+    suspend fun approve(id: String, archiveOverlapping: Boolean, today: LocalDate, now: Instant): ApproveResult = db.withTransaction {
         val d = dao.get(id) ?: return@withTransaction ApproveResult.NotFound
         if (d.status != PlanDraftStatus.DRAFT) return@withTransaction ApproveResult.NotADraft(d.status)
         val payload = DraftCodec.decode(d)
@@ -163,7 +149,8 @@ class PlanDraftStoreImpl(private val db: LifeHubDatabase) : PlanDraftStore {
         ApproveResult.Approved(planIds, archived, goalId)
     }
 
-    override suspend fun reject(id: String, now: Instant): PlanDraft {
+    /** DRAFT -> REJECTED. Throws [IllegalTransitionException] for a decided draft. */
+    suspend fun reject(id: String, now: Instant): PlanDraft {
         val d = dao.get(id) ?: throw IllegalTransitionException("Unknown draft $id")
         if (d.status == PlanDraftStatus.REJECTED) return d
         if (d.status != PlanDraftStatus.DRAFT) throw IllegalTransitionException("Draft already ${d.status.name.lowercase()}")
@@ -172,7 +159,8 @@ class PlanDraftStoreImpl(private val db: LifeHubDatabase) : PlanDraftStore {
         return next
     }
 
-    override suspend fun delete(id: String) = dao.delete(id)
+    /** Removes the draft row (workouts screen "Delete"); plans already created by an Approve stay. */
+    suspend fun delete(id: String) = dao.delete(id)
 
     companion object {
         /** A new goal without a duration gets this many weeks (the tool always asks for one; safety net only). */

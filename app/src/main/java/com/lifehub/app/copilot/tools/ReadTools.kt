@@ -11,7 +11,7 @@ import com.lifehub.app.copilot.agent.ToolSchema
 import com.lifehub.app.data.model.GoalState
 import com.lifehub.app.data.model.PlanWithExercises
 import com.lifehub.app.data.prefs.Settings
-import com.lifehub.app.data.repo.BodyRepository
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.data.repo.FoodRepository
 import com.lifehub.app.data.repo.GoalRepository
 import com.lifehub.app.data.repo.PlanRepository
@@ -43,7 +43,7 @@ object ReadTools {
 
     fun all(
         food: FoodRepository, settings: () -> Settings, goals: GoalRepository, plans: PlanRepository,
-        sessions: SessionRepository, body: BodyRepository, drafts: com.lifehub.app.copilot.plan.PlanDraftStore? = null,
+        sessions: SessionRepository, body: BodyDao, drafts: com.lifehub.app.copilot.plan.PlanDraftStore? = null,
     ): List<CopilotTool> = listOf(
         GetDailySummary(food, settings), GetNutritionTargets(settings), GetGoals(goals, plans),
         GetPlannedWorkouts(plans, sessions), GetWorkoutPlan(plans, goals, drafts), GetBodyWeight(body),
@@ -255,7 +255,7 @@ class GetWorkoutPlan(
     }
 }
 
-class GetBodyWeight(private val body: BodyRepository) : CopilotTool {
+class GetBodyWeight(private val body: BodyDao) : CopilotTool {
     override val name = "get_body_weight"
     override val description = "Body weight entries (one per day, optional muscle and fat mass) between two dates " +
         "(max ${ReadTools.MAX_WEIGHT_DAYS} days), plus the latest entry ever logged."

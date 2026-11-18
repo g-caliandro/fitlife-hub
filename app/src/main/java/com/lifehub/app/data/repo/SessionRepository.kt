@@ -15,53 +15,38 @@ import java.util.UUID
 
 class ActiveSessionExistsException : IllegalStateException()
 
-interface SessionRepository {
-    fun observeInProgress(): Flow<SessionWithSets?>
-    fun observeSession(id: String): Flow<SessionWithSets?>
-    fun observeCompleted(): Flow<List<WorkoutSession>>                    // all, no sets
-    fun observeCompletedWithSets(from: LocalDate, to: LocalDate): Flow<List<SessionWithSets>>
-    /** F-WO-1. Throws ActiveSessionExistsException if one is IN_PROGRESS. Creates one PENDING SessionSet per planned set. */
-    suspend fun startFromPlan(planId: String, now: Instant, today: LocalDate): String
-    suspend fun discard(sessionId: String)
-    suspend fun updateSession(session: WorkoutSession)
-    suspend fun upsertSet(set: SessionSet)
-    suspend fun upsertSets(sets: List<SessionSet>)
-    suspend fun deleteSet(setId: String)
-    /** Sets of [exerciseId] from the most recent completed session in which it was done (any plan). */
-    suspend fun previousSets(exerciseId: String): List<SessionSet>
-    /** F-WO-10: PENDING -> SKIPPED, status COMPLETED, endedAt=now, durationSec, restEndsAt=null. */
-    suspend fun finish(sessionId: String, notes: String?, rpe: Int?, now: Instant)
-    /** F-WO-8 / F-WO-13: writes session + replaces all its sets in one transaction. */
-    suspend fun saveFull(session: WorkoutSession, sets: List<SessionSet>)
-    suspend fun delete(sessionId: String)
-}
-
-class SessionRepositoryImpl(private val db: LifeHubDatabase) : SessionRepository {
+class SessionRepository(private val db: LifeHubDatabase) {
     private val dao = db.sessionDao()
-    override suspend fun previousSets(exerciseId: String): List<SessionSet> = dao.getPreviousSets(exerciseId)
     private val planDao = db.planDao()
 
+    /** Sets of [exerciseId] from the most recent completed session in which it was done (any plan). */
+    suspend fun previousSets(exerciseId: String): List<SessionSet> = dao.getPreviousSets(exerciseId)
+    /** DONE sets of an exercise in completed sessions (live PR detection). */
+    suspend fun historySets(exerciseId: String): List<SessionSet> = dao.getDoneSetsOfCompleted(exerciseId)
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    override fun observeInProgress(): Flow<SessionWithSets?> =
+    fun observeInProgress(): Flow<SessionWithSets?> =
         dao.observeInProgress().flatMapLatest { s ->
             if (s == null) flowOf(null) else dao.observeSets(s.id).map { SessionWithSets(s, it) }
         }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    override fun observeSession(id: String): Flow<SessionWithSets?> =
+    fun observeSession(id: String): Flow<SessionWithSets?> =
         dao.observe(id).flatMapLatest { s ->
             if (s == null) flowOf(null) else dao.observeSets(s.id).map { SessionWithSets(s, it) }
         }
 
-    override fun observeCompleted(): Flow<List<WorkoutSession>> = dao.observeCompleted()
+    /** all, no sets */
+    fun observeCompleted(): Flow<List<WorkoutSession>> = dao.observeCompleted()
 
-    override fun observeCompletedWithSets(from: LocalDate, to: LocalDate): Flow<List<SessionWithSets>> =
+    fun observeCompletedWithSets(from: LocalDate, to: LocalDate): Flow<List<SessionWithSets>> =
         combine(dao.observeCompletedBetween(from, to), dao.observeCompletedSetsBetween(from, to)) { sessions, sets ->
             val by = sets.groupBy { it.sessionId }
             sessions.map { SessionWithSets(it, by[it.id].orEmpty().sortedWith(compareBy({ s -> s.exerciseOrder }, { s -> s.setIndex }))) }
         }
 
-    override suspend fun startFromPlan(planId: String, now: Instant, today: LocalDate): String = db.withTransaction {
+    /** F-WO-1. Throws ActiveSessionExistsException if one is IN_PROGRESS. Creates one PENDING SessionSet per planned set. */
+    suspend fun startFromPlan(planId: String, now: Instant, today: LocalDate): String = db.withTransaction {
         if (dao.getInProgress() != null) throw ActiveSessionExistsException()
         val plan = checkNotNull(planDao.get(planId)) { "Plan $planId not found" }
         val exById = db.exerciseDao().getAll().associateBy { it.id }
@@ -88,13 +73,14 @@ class SessionRepositoryImpl(private val db: LifeHubDatabase) : SessionRepository
         sessionId
     }
 
-    override suspend fun discard(sessionId: String) = dao.delete(sessionId)   // sets cascade
-    override suspend fun updateSession(session: WorkoutSession) = dao.upsert(session)
-    override suspend fun upsertSet(set: SessionSet) = dao.upsertSet(set)
-    override suspend fun upsertSets(sets: List<SessionSet>) = dao.upsertSets(sets)
-    override suspend fun deleteSet(setId: String) = dao.deleteSet(setId)
+    suspend fun discard(sessionId: String) = dao.delete(sessionId)   // sets cascade
+    suspend fun updateSession(session: WorkoutSession) = dao.upsert(session)
+    suspend fun upsertSet(set: SessionSet) = dao.upsertSet(set)
+    suspend fun upsertSets(sets: List<SessionSet>) = dao.upsertSets(sets)
+    suspend fun deleteSet(setId: String) = dao.deleteSet(setId)
 
-    override suspend fun finish(sessionId: String, notes: String?, rpe: Int?, now: Instant) {
+    /** F-WO-10: PENDING -> SKIPPED, status COMPLETED, endedAt=now, durationSec, restEndsAt=null. */
+    suspend fun finish(sessionId: String, notes: String?, rpe: Int?, now: Instant) {
         db.withTransaction {
             val s = dao.get(sessionId) ?: return@withTransaction
             dao.upsertSets(dao.getSets(sessionId).filter { it.status == SetStatus.PENDING }.map { it.copy(status = SetStatus.SKIPPED) })
@@ -108,7 +94,8 @@ class SessionRepositoryImpl(private val db: LifeHubDatabase) : SessionRepository
         }
     }
 
-    override suspend fun saveFull(session: WorkoutSession, sets: List<SessionSet>) {
+    /** F-WO-8 / F-WO-13: writes session + replaces all its sets in one transaction. */
+    suspend fun saveFull(session: WorkoutSession, sets: List<SessionSet>) {
         db.withTransaction {
             dao.upsert(session)
             dao.deleteSets(session.id)
@@ -116,7 +103,7 @@ class SessionRepositoryImpl(private val db: LifeHubDatabase) : SessionRepository
         }
     }
 
-    override suspend fun delete(sessionId: String) {
+    suspend fun delete(sessionId: String) {
         db.withTransaction { db.achievementDao().deletePrsBySession(sessionId); dao.delete(sessionId) }
     }
 }

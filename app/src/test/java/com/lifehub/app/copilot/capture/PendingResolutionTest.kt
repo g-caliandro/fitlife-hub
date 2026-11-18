@@ -155,8 +155,8 @@ class PendingResolutionTest {
         v.sink.cancel(pendingTag)
         assertEquals(PendingStatus.OPEN, status())
         // App restart: new store instances over the same DB.
-        val pending2 = PendingInputStoreImpl(f.db)
-        val captures2 = CaptureStoreImpl(f.db)
+        val pending2 = PendingInputStore(f.db)
+        val captures2 = CaptureStore(f.db)
         assertEquals(listOf(request.id), pending2.observeOpen().first().map { it.id })
         assertEquals(1, pending2.observeOpenCount().first())
         assertEquals(CaptureStatus.AWAITING_INPUT, captures2.get(cap.id)!!.status)

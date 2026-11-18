@@ -16,7 +16,7 @@ import com.lifehub.app.data.model.Plan
 import com.lifehub.app.data.model.PlanWithExercises
 import com.lifehub.app.data.model.WorkoutSession
 import com.lifehub.app.data.prefs.SettingsRepository
-import com.lifehub.app.data.repo.BodyRepository
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.data.repo.FoodRepository
 import com.lifehub.app.data.repo.GoalRepository
 import com.lifehub.app.data.repo.PlanRepository
@@ -80,7 +80,7 @@ class HomeViewModel(
     plans: PlanRepository,
     sessions: SessionRepository,
     food: FoodRepository,
-    body: BodyRepository,
+    body: BodyDao,
     time: TimeSource,
 ) : ViewModel() {
     /** Re-emits after the celebration is dismissed so [HomeUiState.celebrateStreak] turns false. */

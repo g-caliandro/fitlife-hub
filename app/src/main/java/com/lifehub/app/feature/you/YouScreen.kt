@@ -51,6 +51,7 @@ import com.lifehub.app.data.model.GoalState
 import com.lifehub.app.navigation.Routes
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import com.lifehub.app.domain.fatPct
 
 data class YouState(
     val weightKg: Double? = null, val bodyFatPct: Double? = null, val daysAgo: Long? = null,
@@ -66,13 +67,12 @@ fun YouRoute(onNavigate: (String) -> Unit, onBack: () -> Unit = {}) {
     val s by c.settings.settings.collectAsState()
     val latest = body.maxByOrNull { it.date }
     val today = c.time.today()
-    val fat = latest?.fatKg?.let { it / latest.weightKg * 100 }
     val targets = buildList {
         add("Protein ${s.proteinTargetG} g")
         s.kcalTarget?.let { add("${String.format(Locale.US, "%,d", it)} kcal") }
     }.joinToString(" · ")
     YouScreen(
-        YouState(latest?.weightKg, fat, latest?.let { ChronoUnit.DAYS.between(it.date, today) },
+        YouState(latest?.weightKg, latest?.let(::fatPct), latest?.let { ChronoUnit.DAYS.between(it.date, today) },
             goals.count { it.goal.state == GoalState.ACTIVE }, ach.count { !it.kind.isConsistency },
             s.notifyTrain || s.notifyProtein || s.notifyWeight || s.notifyAchievements || s.notifyStreak, targets),
         onNavigate, today, onBack,

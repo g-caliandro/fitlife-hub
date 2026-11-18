@@ -11,7 +11,7 @@ import com.lifehub.app.data.model.CaptureStatus
 import com.lifehub.app.data.model.ChatOrigin
 import com.lifehub.app.data.model.FoodPortion
 import com.lifehub.app.data.model.PortionKind
-import com.lifehub.app.data.repo.ChatStoreImpl
+import com.lifehub.app.data.repo.ChatStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -83,7 +83,7 @@ class Migration8To9Test {
         assertEquals(1, db.achievementDao().getAll().size)
         assertEquals(800, db.quickAddDao().getAll().single().kcal)
         assertEquals(77.4, db.bodyDao().getAll().single().weightKg, 0.0)
-        assertEquals("Ciao", ChatStoreImpl(db).messages("t1").single().text)
+        assertEquals("Ciao", ChatStore(db).messages("t1").single().text)
 
         val food = db.foodDao().getAll().single()
         assertEquals("Merluzzo gratinato", food.name); assertEquals(125.0, food.servingSizeG!!, 0.0); assertEquals(true, food.favorite)
@@ -99,7 +99,7 @@ class Migration8To9Test {
         // New tables: portions (FK to foods, cascade), captures + writes, pending inputs, base foods.
         db.portionDao().upsertPortion(FoodPortion("p1", "f1", "package", 400.0, true, PortionKind.PACKAGE, Instant.EPOCH))
         assertEquals(1, db.portionDao().portions("f1").size)
-        val capture = com.lifehub.app.copilot.capture.CaptureStoreImpl(db).create("t1", ChatOrigin.CHAT, "x", java.time.ZoneId.of("Europe/Rome"), Instant.EPOCH)
+        val capture = com.lifehub.app.copilot.capture.CaptureStore(db).create("t1", ChatOrigin.CHAT, "x", java.time.ZoneId.of("Europe/Rome"), Instant.EPOCH)
         assertEquals(CaptureStatus.RECORDED, db.captureDao().get(capture.id)!!.status)
         assertEquals(0, db.baseFoodDao().count())
         db.foodDao().delete("f1")

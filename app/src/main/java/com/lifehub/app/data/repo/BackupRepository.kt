@@ -4,21 +4,12 @@ import androidx.room.withTransaction
 import com.lifehub.app.data.db.LifeHubDatabase
 import com.lifehub.app.data.prefs.SettingsRepository
 
-interface BackupRepository {
-    suspend fun snapshot(): DataSnapshot
-    /** Single transaction: deleteAll children->parents, insertAll parents->children, then settings.replace(). */
-    suspend fun replaceAll(snapshot: DataSnapshot)
-    /** F-SET-6: wipe all tables + settings.clear() (the exercise library starts empty). */
-    suspend fun clearAll()
-    suspend fun isEmpty(): Boolean      // no goals, plans, sessions, quick adds, body entries
-}
-
-class BackupRepositoryImpl(
+class BackupRepository(
     private val db: LifeHubDatabase,
     private val settings: SettingsRepository,
-) : BackupRepository {
+) {
 
-    override suspend fun snapshot(): DataSnapshot = db.withTransaction {
+    suspend fun snapshot(): DataSnapshot = db.withTransaction {
         DataSnapshot(
             settings = settings.current(),
             goals = db.goalDao().getAll(), links = db.goalDao().getAllLinks(),
@@ -49,7 +40,8 @@ class BackupRepositoryImpl(
         db.bodyDao().deleteAll()
     }
 
-    override suspend fun replaceAll(snapshot: DataSnapshot) {
+    /** Single transaction: deleteAll children->parents, insertAll parents->children, then settings.replace(). */
+    suspend fun replaceAll(snapshot: DataSnapshot) {
         db.withTransaction {
             wipe()
             db.exerciseDao().insertAll(snapshot.exercises)
@@ -75,12 +67,14 @@ class BackupRepositoryImpl(
         settings.replace(snapshot.settings)
     }
 
-    override suspend fun clearAll() {
+    /** F-SET-6: wipe all tables + settings.clear() (the exercise library starts empty). */
+    suspend fun clearAll() {
         db.withTransaction { wipe() }
         settings.clear()
     }
 
-    override suspend fun isEmpty(): Boolean = db.withTransaction {
+    /** No goals, plans, sessions, quick adds, body entries or food entries. */
+    suspend fun isEmpty(): Boolean = db.withTransaction {
         db.goalDao().getAll().isEmpty() && db.planDao().getAll().isEmpty() && db.sessionDao().getAll().isEmpty() &&
             db.quickAddDao().getAll().isEmpty() && db.bodyDao().getAll().isEmpty() &&
             db.foodEntryDao().getAll().isEmpty()

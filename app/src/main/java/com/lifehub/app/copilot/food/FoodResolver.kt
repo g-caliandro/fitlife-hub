@@ -11,6 +11,7 @@ import com.lifehub.app.data.off.OffProduct
 import com.lifehub.app.data.off.OffProductSearch
 import com.lifehub.app.data.off.OffResult
 import kotlinx.serialization.Serializable
+import com.lifehub.app.domain.autoKcal
 
 /**
  * One food the copilot can log: values per 100 g, known portions and where it comes from. [ref] is the opaque id the
@@ -98,7 +99,7 @@ object Candidates {
             p.servingG?.let { add(PortionInfo("serving", it, PortionKind.SERVING, isDefault = true)) }
             p.packageG?.let { add(PortionInfo("package", it, PortionKind.PACKAGE, isDefault = p.servingG == null)) }
         }
-        val kcal = p.kcal100 ?: (4 * (p.protein100 ?: 0.0) + 4 * (p.carbs100 ?: 0.0) + 9 * (p.fat100 ?: 0.0))
+        val kcal = p.kcal100 ?: autoKcal(p.protein100 ?: 0.0, p.carbs100 ?: 0.0, p.fat100 ?: 0.0)
         return FoodCandidate(
             ref = FoodRefs.off(p.code), name = p.name, brand = p.brand, source = EntrySource.OPEN_FOOD_FACTS,
             kcal100 = kcal, protein100 = p.protein100 ?: 0.0, carbs100 = p.carbs100 ?: 0.0, fat100 = p.fat100 ?: 0.0,

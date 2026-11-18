@@ -39,11 +39,9 @@ import com.lifehub.app.feature.plans.PlanDetailRoute
 import com.lifehub.app.feature.plans.PlanEditRoute
 import com.lifehub.app.feature.plans.PlansRoute
 import com.lifehub.app.feature.settings.AboutRoute
-import com.lifehub.app.feature.settings.DataRoute
 import com.lifehub.app.feature.settings.CopilotSettingsRoute
-import com.lifehub.app.feature.settings.NotificationsRoute
 import com.lifehub.app.feature.settings.SettingsRoute
-import com.lifehub.app.feature.settings.TargetsRoute
+import com.lifehub.app.feature.settings.SettingsSection
 import com.lifehub.app.feature.you.YouRoute
 import com.lifehub.app.feature.workout.LiveWorkoutRoute
 import com.lifehub.app.feature.workout.SessionRoute
@@ -168,8 +166,8 @@ fun LhNavHost(
         composable(Routes.BODY_EDIT, arguments = listOf(longArg("date"))) { BodyEditRoute(back) }
         composable(Routes.SETTINGS) { SettingsRoute(back) }
         composable(Routes.YOU) { YouRoute(nav, back) }
-        composable(Routes.TARGETS) { TargetsRoute(back) }
-        composable(Routes.SETTINGS_NOTIFICATIONS) { NotificationsRoute(back) }
+        composable(Routes.TARGETS) { SettingsRoute(back, SettingsSection.TARGETS) }
+        composable(Routes.SETTINGS_NOTIFICATIONS) { SettingsRoute(back, SettingsSection.NOTIFICATIONS) }
         composable(Routes.SETTINGS_COPILOT) { CopilotSettingsRoute(back, onOpenMeasures = { nav(Routes.SETTINGS_COPILOT_MEASURES) }, onOpenMemory = { nav(Routes.SETTINGS_COPILOT_MEMORY) }) }
         composable(Routes.SETTINGS_COPILOT_MEASURES) { com.lifehub.app.feature.settings.HouseholdMeasuresRoute(back) }
         composable(Routes.COPILOT, arguments = listOf(strArg("threadId"))) { ChatRoute(nav, back) }
@@ -177,7 +175,7 @@ fun LhNavHost(
         composable(Routes.COPILOT_THREADS) { com.lifehub.app.feature.copilot.ThreadsRoute(nav, back) }
         composable(Routes.SETTINGS_COPILOT_MEMORY) { com.lifehub.app.feature.settings.UserMemoryRoute(back) }
         composable(Routes.PLAN_DRAFT, arguments = listOf(strArg("draftId", nullable = false))) { com.lifehub.app.feature.plans.PlanDraftRoute(back) }
-        composable(Routes.SETTINGS_DATA) { DataRoute(back) }
+        composable(Routes.SETTINGS_DATA) { SettingsRoute(back, SettingsSection.DATA) }
         composable(Routes.ABOUT) { AboutRoute(back) }
         composable(Routes.ACHIEVEMENTS) { AchievementsRoute(nav, back) }
     }

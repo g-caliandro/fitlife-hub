@@ -13,7 +13,6 @@ import java.time.LocalDate
     @Query("SELECT * FROM foods WHERE lastUsedAt IS NOT NULL ORDER BY lastUsedAt DESC LIMIT :limit") fun observeRecent(limit: Int): Flow<List<Food>>
     @Query("SELECT * FROM foods WHERE favorite = 1 OR source = 'CUSTOM' ORDER BY favorite DESC, name COLLATE NOCASE") fun observeMine(): Flow<List<Food>>
     @Query("SELECT * FROM foods WHERE id = :id") suspend fun get(id: String): Food?
-    @Query("SELECT * FROM foods WHERE id = :id") fun observe(id: String): Flow<Food?>
     @Query("SELECT * FROM foods WHERE barcode = :barcode LIMIT 1") suspend fun getByBarcode(barcode: String): Food?
     @Upsert suspend fun upsert(food: Food)
     @Query("DELETE FROM foods WHERE id = :id") suspend fun delete(id: String)

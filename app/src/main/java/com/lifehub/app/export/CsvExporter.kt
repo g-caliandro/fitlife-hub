@@ -8,6 +8,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.lifehub.app.domain.fatPct
 
 /** CSV zip export (spec 6.2). RFC 4180 quoting, "\n" line endings, empty cell = null. */
 object CsvExporter {
@@ -45,7 +46,7 @@ object CsvExporter {
                 csv(it.id, it.date, it.name, it.kcal, it.proteinG, it.carbsG, it.fatG, it.kcalIsAuto, ts(it.createdAt))
             })
         table("body_entries.csv", "date,weightKg,muscleKg,fatKg,fatPct",
-            s.bodyEntries.sortedBy { it.date }.map { csv(it.date, it.weightKg, it.muscleKg, it.fatKg, it.fatKg?.let { f -> f / it.weightKg * 100 }) })
+            s.bodyEntries.sortedBy { it.date }.map { csv(it.date, it.weightKg, it.muscleKg, it.fatKg, fatPct(it)) })
         table("achievements.csv", "id,kind,big,title,detail,value,unit,exerciseId,goalId,sessionId,achievedOn,createdAt,dedupeKey",
             s.achievements.sortedWith(compareBy({ it.achievedOn }, { it.dedupeKey })).map {
                 csv(it.id, it.kind, it.kind.isBig, it.title, it.detail, it.value, it.unit, it.exerciseId, it.goalId, it.sessionId, it.achievedOn, ts(it.createdAt), it.dedupeKey)

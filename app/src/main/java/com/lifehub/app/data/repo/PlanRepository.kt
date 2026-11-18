@@ -9,24 +9,7 @@ import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.util.UUID
 
-interface PlanRepository {
-    fun observePlans(): Flow<List<PlanWithExercises>>                     // includes archived; UI filters
-    fun observePlan(id: String): Flow<PlanWithExercises?>
-    suspend fun get(id: String): PlanWithExercises?
-    suspend fun getLinks(planId: String): List<GoalPlanLink>
-    /** Upserts plan, replaces its PlanExercise rows (orderIndex re-numbered 0..n-1 from list order) and its goal links. */
-    suspend fun save(plan: Plan, exercises: List<PlanExercise>, links: List<GoalPlanLink>)
-    suspend fun duplicate(id: String, now: Instant): String               // returns new id; "<name> (copy)", no links
-    suspend fun setArchived(id: String, archived: Boolean)
-    /**
-     * Progressive overload memory: raises the plan's targets to what was achieved in [sets] (a finished session of
-     * [planId]), see [com.lifehub.app.domain.Progression]. Returns short labels of the raised targets.
-     */
-    suspend fun raiseTargets(planId: String, sets: List<com.lifehub.app.data.model.SessionSet>): List<String>
-    suspend fun delete(id: String)                                       // sessions keep planName, planId -> NULL
-}
-
-class PlanRepositoryImpl(private val db: LifeHubDatabase) : PlanRepository {
+class PlanRepository(private val db: LifeHubDatabase) {
     private val dao = db.planDao()
     private val goalDao = db.goalDao()
     private val exerciseDao = db.exerciseDao()
@@ -37,27 +20,29 @@ class PlanRepositoryImpl(private val db: LifeHubDatabase) : PlanRepository {
             items.sortedBy { it.orderIndex }.mapNotNull { pe -> exById[pe.exerciseId]?.let { PlanExerciseItem(pe, it) } },
         )
 
-    override fun observePlans(): Flow<List<PlanWithExercises>> =
+    /** includes archived; UI filters */
+    fun observePlans(): Flow<List<PlanWithExercises>> =
         combine(dao.observeAll(), dao.observeAllExercises(), exerciseDao.observeAll()) { plans, pes, exs ->
             val exById = exs.associateBy { it.id }
             val byPlan = pes.groupBy { it.planId }
             plans.map { assemble(it, byPlan[it.id].orEmpty(), exById) }
         }
 
-    override fun observePlan(id: String): Flow<PlanWithExercises?> =
+    fun observePlan(id: String): Flow<PlanWithExercises?> =
         combine(dao.observe(id), dao.observeExercises(id), exerciseDao.observeAll()) { p, pes, exs ->
             p?.let { assemble(it, pes, exs.associateBy { e -> e.id }) }
         }
 
-    override suspend fun get(id: String): PlanWithExercises? {
+    suspend fun get(id: String): PlanWithExercises? {
         val p = dao.get(id) ?: return null
         val exById = exerciseDao.getAll().associateBy { it.id }
         return assemble(p, dao.getExercises(id), exById)
     }
 
-    override suspend fun getLinks(planId: String): List<GoalPlanLink> = goalDao.getLinksForPlan(planId)
+    suspend fun getLinks(planId: String): List<GoalPlanLink> = goalDao.getLinksForPlan(planId)
 
-    override suspend fun save(plan: Plan, exercises: List<PlanExercise>, links: List<GoalPlanLink>) {
+    /** Upserts plan, replaces its PlanExercise rows (orderIndex re-numbered 0..n-1 from list order) and its goal links. */
+    suspend fun save(plan: Plan, exercises: List<PlanExercise>, links: List<GoalPlanLink>) {
         db.withTransaction {
             dao.upsert(plan)
             dao.deleteExercises(plan.id)
@@ -67,7 +52,8 @@ class PlanRepositoryImpl(private val db: LifeHubDatabase) : PlanRepository {
         }
     }
 
-    override suspend fun duplicate(id: String, now: Instant): String = db.withTransaction {
+    /** returns new id; "<name> (copy)", no links */
+    suspend fun duplicate(id: String, now: Instant): String = db.withTransaction {
         val src = checkNotNull(dao.get(id)) { "Plan $id not found" }
         val newId = UUID.randomUUID().toString()
         dao.upsert(src.copy(id = newId, name = "${src.name} (copy)", isArchived = false, createdAt = now))
@@ -75,13 +61,18 @@ class PlanRepositoryImpl(private val db: LifeHubDatabase) : PlanRepository {
         newId
     }
 
-    override suspend fun setArchived(id: String, archived: Boolean) {
+    suspend fun setArchived(id: String, archived: Boolean) {
         dao.get(id)?.let { dao.upsert(it.copy(isArchived = archived)) }
     }
 
-    override suspend fun delete(id: String) = dao.delete(id)
+    /** sessions keep planName, planId -> NULL */
+    suspend fun delete(id: String) = dao.delete(id)
 
-    override suspend fun raiseTargets(planId: String, sets: List<com.lifehub.app.data.model.SessionSet>): List<String> {
+    /**
+     * Progressive overload memory: raises the plan's targets to what was achieved in [sets] (a finished session of
+     * [planId]), see [com.lifehub.app.domain.Progression]. Returns short labels of the raised targets.
+     */
+    suspend fun raiseTargets(planId: String, sets: List<com.lifehub.app.data.model.SessionSet>): List<String> {
         val raised = com.lifehub.app.domain.Progression.raise(dao.getExercises(planId), sets)
         if (raised.isNotEmpty()) dao.upsertExercises(raised.map { it.updated })
         return raised.map { it.label }

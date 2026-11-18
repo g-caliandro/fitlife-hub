@@ -9,7 +9,7 @@ import com.lifehub.app.data.model.FoodEntry
 import com.lifehub.app.data.model.FoodPortion
 import com.lifehub.app.data.model.FoodSource
 import com.lifehub.app.data.model.PortionKind
-import com.lifehub.app.data.repo.BackupRepositoryImpl
+import com.lifehub.app.data.repo.BackupRepository
 import com.lifehub.app.data.repo.NewChatMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -35,7 +35,7 @@ class CopilotExportTest {
         f.db.portionDao().upsertPortion(FoodPortion("p1", "f1", "scatola", 400.0, true, PortionKind.PACKAGE, f.now))
         f.db.foodEntryDao().insert(FoodEntry("e1", f.today, "f1", "Merluzzo", "Findus", 200.0, 300.0, 22.0, 18.0, 15.2, f.now,
             loggedAt = f.now, source = EntrySource.HISTORY, captureId = cap.id, servings = 0.5, portionLabel = "scatola", portionGrams = 400.0))
-        val backup = BackupRepositoryImpl(f.db, f.settings)
+        val backup = BackupRepository(f.db, f.settings)
         val text = JsonCodec.encode(backup.snapshot(), ZonedDateTime.now(f.zone), "x")
         assertTrue(text.contains("\"foodPortions\"")); assertTrue(text.contains("\"householdMeasures\""))
         assertTrue(text.contains("\"portionLabel\": \"scatola\"")); assertTrue(text.contains("\"source\": \"HISTORY\""))

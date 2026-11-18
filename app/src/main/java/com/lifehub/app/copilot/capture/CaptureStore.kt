@@ -10,50 +10,37 @@ import java.time.ZoneId
 import java.util.UUID
 
 /** Captures (design doc "CaptureStore"): text/audio, state, outcome; the records each capture wrote are in capture_writes. */
-interface CaptureStore {
+class CaptureStore(db: LifeHubDatabase) {
+    private val dao = db.captureDao()
+
     /**
      * [audioPath]: a dictated capture (phase 4) whose text comes from the transcriber; [text] is then null.
      * [attachedFoodId]: the scanned product attached to the message (phase 5), a cached food.
      */
-    suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String? = null, attachedFoodId: String? = null, id: String = UUID.randomUUID().toString()): Capture
-    suspend fun get(id: String): Capture?
-    fun observe(id: String): Flow<Capture?>
-    fun observeByThread(threadId: String): Flow<List<Capture>>
-    suspend fun byStatus(statuses: List<CaptureStatus>): List<Capture>
-    fun observeByStatus(statuses: List<CaptureStatus>): Flow<List<Capture>>
-    /** Stores the transcript of a dictated capture (set once; later calls are ignored). */
-    suspend fun setTranscript(id: String, transcript: String, now: Instant)
-    /** Clears [Capture.audioPath] after the audio file was deleted. */
-    suspend fun clearAudio(id: String, now: Instant)
-    /** Moves [id] to [to] if [CaptureStateMachine] allows it, else throws [IllegalTransitionException]. */
-    suspend fun move(id: String, to: CaptureStatus, now: Instant, outcome: String? = null, errorCode: String? = null, errorMessage: String? = null): Capture
-    suspend fun setMealAt(id: String, mealAt: Instant, now: Instant)
-}
-
-class CaptureStoreImpl(db: LifeHubDatabase) : CaptureStore {
-    private val dao = db.captureDao()
-
-    override suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String?, attachedFoodId: String?, id: String): Capture {
+    suspend fun create(threadId: String?, origin: ChatOrigin, text: String?, zone: ZoneId, now: Instant, audioPath: String? = null, attachedFoodId: String? = null, id: String = UUID.randomUUID().toString()): Capture {
         val c = Capture(id, threadId, origin, CaptureStatus.RECORDED, text, audioPath = audioPath, attachedFoodId = attachedFoodId, zoneId = zone.id, createdAt = now, updatedAt = now)
         dao.upsert(c)
         return c
     }
 
-    override suspend fun get(id: String) = dao.get(id)
-    override fun observe(id: String) = dao.observe(id)
-    override fun observeByThread(threadId: String) = dao.observeByThread(threadId)
-    override suspend fun byStatus(statuses: List<CaptureStatus>) = dao.byStatus(statuses)
-    override fun observeByStatus(statuses: List<CaptureStatus>) = dao.observeByStatus(statuses)
+    suspend fun get(id: String) = dao.get(id)
+    fun observe(id: String) = dao.observe(id)
+    fun observeByThread(threadId: String) = dao.observeByThread(threadId)
+    suspend fun byStatus(statuses: List<CaptureStatus>) = dao.byStatus(statuses)
+    fun observeByStatus(statuses: List<CaptureStatus>) = dao.observeByStatus(statuses)
 
-    override suspend fun setTranscript(id: String, transcript: String, now: Instant) {
+    /** Stores the transcript of a dictated capture (set once; later calls are ignored). */
+    suspend fun setTranscript(id: String, transcript: String, now: Instant) {
         dao.get(id)?.takeIf { it.transcript == null }?.let { dao.upsert(it.copy(transcript = transcript, updatedAt = now)) }
     }
 
-    override suspend fun clearAudio(id: String, now: Instant) {
+    /** Clears [Capture.audioPath] after the audio file was deleted. */
+    suspend fun clearAudio(id: String, now: Instant) {
         dao.get(id)?.takeIf { it.audioPath != null }?.let { dao.upsert(it.copy(audioPath = null, updatedAt = now)) }
     }
 
-    override suspend fun move(id: String, to: CaptureStatus, now: Instant, outcome: String?, errorCode: String?, errorMessage: String?): Capture {
+    /** Moves [id] to [to] if [CaptureStateMachine] allows it, else throws [IllegalTransitionException]. */
+    suspend fun move(id: String, to: CaptureStatus, now: Instant, outcome: String? = null, errorCode: String? = null, errorMessage: String? = null): Capture {
         val c = dao.get(id) ?: throw IllegalTransitionException("Unknown capture $id")
         if (c.status == to) return c
         if (!CaptureStateMachine.canMove(c.status, to)) throw IllegalTransitionException("Capture ${c.status} -> $to not allowed")
@@ -68,7 +55,4 @@ class CaptureStoreImpl(db: LifeHubDatabase) : CaptureStore {
         return next
     }
 
-    override suspend fun setMealAt(id: String, mealAt: Instant, now: Instant) {
-        dao.get(id)?.takeIf { it.mealAt == null }?.let { dao.upsert(it.copy(mealAt = mealAt, updatedAt = now)) }
-    }
 }

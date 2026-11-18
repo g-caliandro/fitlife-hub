@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.Flow
 /** Food portions + household measures (v9). */
 @Dao interface PortionDao {
     @Query("SELECT * FROM food_portions WHERE foodId = :foodId ORDER BY isDefault DESC, grams") suspend fun portions(foodId: String): List<FoodPortion>
-    @Query("SELECT * FROM food_portions WHERE foodId = :foodId ORDER BY isDefault DESC, grams") fun observePortions(foodId: String): Flow<List<FoodPortion>>
     @Query("SELECT * FROM food_portions ORDER BY foodId, grams, id") suspend fun allPortions(): List<FoodPortion>
     @Query("SELECT * FROM food_portions WHERE id = :id") suspend fun portion(id: String): FoodPortion?
     @Upsert suspend fun upsertPortion(p: FoodPortion)

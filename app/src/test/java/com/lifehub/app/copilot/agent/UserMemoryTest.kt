@@ -12,7 +12,7 @@ import com.lifehub.app.copilot.memory.UserMemoryStore
 import com.lifehub.app.data.model.ChatOrigin
 import com.lifehub.app.data.model.ChatRole
 import com.lifehub.app.data.model.UserMemory
-import com.lifehub.app.data.repo.BackupRepositoryImpl
+import com.lifehub.app.data.repo.BackupRepository
 import com.lifehub.app.export.JsonCodec
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -92,7 +92,7 @@ class UserMemoryTest {
 
     @Test fun memoryIsExportedAndImported() = runBlocking {
         f.memory.save("equipment", "sbarra e anelli", f.now)
-        val backup = BackupRepositoryImpl(f.db, f.settings)
+        val backup = BackupRepository(f.db, f.settings)
         val text = JsonCodec.encode(backup.snapshot(), ZonedDateTime.now(f.zone), "x")
         assertTrue(text.contains("\"userMemory\"")); assertTrue(text.contains("sbarra e anelli"))
 

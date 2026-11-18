@@ -4,6 +4,7 @@ import android.content.Context
 import com.lifehub.app.core.time.SystemTimeSource
 import com.lifehub.app.core.time.TimeSource
 import com.lifehub.app.data.db.LifeHubDatabase
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.copilot.agent.AgentLoop
 import com.lifehub.app.copilot.agent.ToolRegistry
 import com.lifehub.app.copilot.llm.ConnectionTester
@@ -16,10 +17,8 @@ import com.lifehub.app.data.off.OffBarcodeClient
 import com.lifehub.app.copilot.tools.FoodRefLookup
 import com.lifehub.app.copilot.capture.CaptureProcessor
 import com.lifehub.app.copilot.capture.CaptureStore
-import com.lifehub.app.copilot.capture.CaptureStoreImpl
 import com.lifehub.app.copilot.capture.FoodLogWriter
 import com.lifehub.app.copilot.capture.PendingInputStore
-import com.lifehub.app.copilot.capture.PendingInputStoreImpl
 import com.lifehub.app.copilot.food.FoodCatalog
 import com.lifehub.app.copilot.food.FoodResolver
 import com.lifehub.app.copilot.food.OffCandidateCache
@@ -37,6 +36,15 @@ import com.lifehub.app.data.prefs.CopilotSettingsRepository
 import com.lifehub.app.data.prefs.SettingsRepository
 import com.lifehub.app.data.repo.*
 import com.lifehub.app.copilot.capture.CaptureRunner
+import com.lifehub.app.copilot.memory.MemoryContext
+import com.lifehub.app.copilot.memory.UserMemoryStore
+import com.lifehub.app.copilot.plan.PlanDraftStore
+import com.lifehub.app.copilot.tools.MealSuggestions
+import com.lifehub.app.copilot.tools.PlanTools
+import com.lifehub.app.copilot.tools.SaveUserMemoryTool
+import com.lifehub.app.copilot.tools.SuggestMealTool
+import com.lifehub.app.data.off.OffApi
+import com.lifehub.app.data.off.OpenFoodFactsClient
 import com.lifehub.app.copilot.capture.VoiceCaptures
 import com.lifehub.app.copilot.capture.CaptureScheduler
 import com.lifehub.app.copilot.capture.WorkManagerCaptureScheduler
@@ -59,16 +67,16 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
     val appContext: Context = context.applicationContext
     val db: LifeHubDatabase = LifeHubDatabase.build(appContext)
     val settings = SettingsRepository(appContext)
-    val goals: GoalRepository = GoalRepositoryImpl(db)
-    val plans: PlanRepository = PlanRepositoryImpl(db)
-    val exercises: ExerciseRepository = ExerciseRepositoryImpl(db)
-    val sessions: SessionRepository = SessionRepositoryImpl(db)
-    val quickAdds: QuickAddRepository = QuickAddRepositoryImpl(db)
-    val food: FoodRepository = FoodRepositoryImpl(db)
-    val off: com.lifehub.app.data.off.OffApi = com.lifehub.app.data.off.OpenFoodFactsClient()
-    val body: BodyRepository = BodyRepositoryImpl(db)
-    val achievements: AchievementRepository = AchievementRepositoryImpl(db, settings)
-    val backup: BackupRepository = BackupRepositoryImpl(db, settings)
+    val goals = GoalRepository(db)
+    val plans = PlanRepository(db)
+    val exercises = ExerciseRepository(db)
+    val sessions = SessionRepository(db)
+    val quickAdds = QuickAddRepository(db)
+    val food = FoodRepository(db)
+    val off: OffApi = OpenFoodFactsClient()
+    val body: BodyDao = db.bodyDao()
+    val achievements = AchievementRepository(db, settings)
+    val backup = BackupRepository(db, settings)
     val copilotSettings = CopilotSettingsRepository(appContext)
     /** Encrypted API keys (Keystore + noBackupFilesDir). Never enters Settings, the export or logs. */
     val secrets: SecretStore = EncryptedFileSecretStore.create(appContext)
@@ -77,37 +85,37 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
         transport = UrlConnectionTransport(),
     )
     val llmConnectionTester = ConnectionTester(llm) { copilotSettings.current().llmModel }
-    val chat: ChatStore = ChatStoreImpl(db)
+    val chat = ChatStore(db)
     val baseFoods = BaseFoodRepository(db) { appContext.assets.open("copilot/base_foods.json").bufferedReader().use { it.readText() } }
     val measures = HouseholdMeasureRepository(db)
     val foodCatalog: FoodCatalog = RoomFoodCatalog(db, baseFoods)
     val offSearch: OffProductSearch = SearchaliciousClient()
     val offCandidates = OffCandidateCache()
     val foodResolver = FoodResolver(foodCatalog, offSearch, offCandidates)
-    val captures: CaptureStore = CaptureStoreImpl(db)
+    val captures = CaptureStore(db)
     /** Open requests to the user; independent from the chat UI (inbox and notifications use it in phase 4). */
-    val pendingInputs: PendingInputStore = PendingInputStoreImpl(db)
+    val pendingInputs = PendingInputStore(db)
     val foodLog = FoodLogWriter(db)
     val foodRefs = FoodRefLookup(foodCatalog, offCandidates, pendingInputs)
     /** Scanner (app) and copilot barcode lookup; the scanner's "pick" mode and `get_product_by_barcode` use it. */
     val barcodeLookup = BarcodeLookup(food, off, OffBarcodeClient(), db, time)
     val bodyLog = BodyLogWriter(db)
     /** Phase 6: plan drafts (never active without Approve) and user memory (injected in every request, capped). */
-    val planDrafts: com.lifehub.app.copilot.plan.PlanDraftStore = com.lifehub.app.copilot.plan.PlanDraftStoreImpl(db)
-    val userMemory: com.lifehub.app.copilot.memory.UserMemoryStore = com.lifehub.app.copilot.memory.UserMemoryStoreImpl(db)
-    val mealSuggestions = com.lifehub.app.copilot.tools.MealSuggestions(captures, foodLog, time)
+    val planDrafts = PlanDraftStore(db)
+    val userMemory = UserMemoryStore(db)
+    val mealSuggestions = MealSuggestions(captures, foodLog, time)
     /** All copilot tools. */
     val copilotTools = ToolRegistry(
         ReadTools.all(food, { settings.current() }, goals, plans, sessions, body, planDrafts) +
             FoodTools.all(foodResolver, foodRefs, foodCatalog, foodLog, captures, pendingInputs, food, barcodeLookup, offCandidates) { settings.current() } +
             BodyTools.all(bodyLog, captures) +
-            com.lifehub.app.copilot.tools.PlanTools.all(planDrafts, goals) { db.exerciseDao().findByName(it) } +
+            PlanTools.all(planDrafts, goals) { db.exerciseDao().findByName(it) } +
             listOf(
-                com.lifehub.app.copilot.tools.SuggestMealTool(foodRefs, food, userMemory) { settings.current() },
-                com.lifehub.app.copilot.tools.SaveUserMemoryTool(userMemory),
+                SuggestMealTool(foodRefs, food, userMemory) { settings.current() },
+                SaveUserMemoryTool(userMemory),
             ),
     )
-    val agent = AgentLoop(llm, copilotTools, chat, time, contextProviders = listOf(com.lifehub.app.copilot.memory.MemoryContext(userMemory)))
+    val agent = AgentLoop(llm, copilotTools, chat, time, contextProviders = listOf(MemoryContext(userMemory)))
 
     // Phase 4: voice, background worker, notifications.
     val transcriber: Transcriber = WhisperApiTranscriber(

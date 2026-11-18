@@ -9,32 +9,19 @@ import java.time.LocalDate
 import java.util.UUID
 
 /** Quick-add entries: kcal (required) + optional protein/carbs/fat (null = unknown) + optional name; many per day. */
-interface QuickAddRepository {
-    fun observeBetween(from: LocalDate, to: LocalDate): Flow<List<QuickAddEntry>>
-    suspend fun getDay(date: LocalDate): List<QuickAddEntry>
-    suspend fun get(id: String): QuickAddEntry?
+class QuickAddRepository(db: LifeHubDatabase) {
+    private val dao = db.quickAddDao()
+    fun observeBetween(from: LocalDate, to: LocalDate) = dao.observeBetween(from, to)
+    suspend fun getDay(date: LocalDate) = dao.getDay(date)
+    suspend fun get(id: String) = dao.get(id)
     /** Most recent quick add strictly before [date] (for "Copy ..."). */
-    suspend fun latestBefore(date: LocalDate): QuickAddEntry?
+    suspend fun latestBefore(date: LocalDate) = dao.latestBefore(date)
+
     /**
      * Creates ([id] null) or updates an entry. kcal null => 4·P + 4·C + 9·F, which needs all three macros
      * (otherwise IllegalArgumentException). Returns the stored entry.
      */
     suspend fun save(
-        id: String?, date: LocalDate, name: String?, kcal: Int?, proteinG: Int?, carbsG: Int?, fatG: Int?, now: Instant,
-    ): QuickAddEntry
-    /** Puts back an exact entry (undo / copy). */
-    suspend fun restore(e: QuickAddEntry)
-    suspend fun delete(id: String)
-}
-
-class QuickAddRepositoryImpl(db: LifeHubDatabase) : QuickAddRepository {
-    private val dao = db.quickAddDao()
-    override fun observeBetween(from: LocalDate, to: LocalDate) = dao.observeBetween(from, to)
-    override suspend fun getDay(date: LocalDate) = dao.getDay(date)
-    override suspend fun get(id: String) = dao.get(id)
-    override suspend fun latestBefore(date: LocalDate) = dao.latestBefore(date)
-
-    override suspend fun save(
         id: String?, date: LocalDate, name: String?, kcal: Int?, proteinG: Int?, carbsG: Int?, fatG: Int?, now: Instant,
     ): QuickAddEntry {
         val auto = kcal == null
@@ -52,6 +39,7 @@ class QuickAddRepositoryImpl(db: LifeHubDatabase) : QuickAddRepository {
         return e
     }
 
-    override suspend fun restore(e: QuickAddEntry) = dao.upsert(e)
-    override suspend fun delete(id: String) = dao.delete(id)
+    /** Puts back an exact entry (undo / copy). */
+    suspend fun restore(e: QuickAddEntry) = dao.upsert(e)
+    suspend fun delete(id: String) = dao.delete(id)
 }

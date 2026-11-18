@@ -8,7 +8,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import com.lifehub.app.data.model.ChatOrigin
 import com.lifehub.app.data.model.ChatRole
-import com.lifehub.app.data.repo.ChatStoreImpl
+import com.lifehub.app.data.repo.ChatStore
 import com.lifehub.app.data.repo.NewChatMessage
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -80,7 +80,7 @@ class Migration7To8Test {
         assertEquals(77.4, db.bodyDao().getAll().single().weightKg, 0.0)
 
         // New tables: insert, read back, cascade on thread delete.
-        val store = ChatStoreImpl(db)
+        val store = ChatStore(db)
         val t = store.createThread("Test", ChatOrigin.CHAT, Instant.ofEpochMilli(1000))
         store.append(t.id, NewChatMessage(ChatRole.USER, "Ciao"), Instant.ofEpochMilli(2000))
         store.append(t.id, NewChatMessage(ChatRole.ASSISTANT, "Ciao!"), Instant.ofEpochMilli(3000))

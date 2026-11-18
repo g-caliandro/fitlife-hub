@@ -57,30 +57,12 @@ object PendingCodec {
  * notifications: the chat (now), the inbox and the notification actions (phase 4) all answer through [answer]/[discard],
  * so answering in one place closes the request everywhere.
  */
-interface PendingInputStore {
+class PendingInputStore(db: LifeHubDatabase) {
+    private val dao = db.pendingInputDao()
+
     suspend fun create(
         captureId: String, threadId: String?, kind: PendingKind, prompt: String, options: List<PendingOption>,
         item: PendingItem?, foodRef: String?, now: Instant, id: String = UUID.randomUUID().toString(),
-    ): PendingInput
-    suspend fun get(id: String): PendingInput?
-    suspend fun byCapture(captureId: String): List<PendingInput>
-    fun observeOpen(): Flow<List<PendingInput>>
-    fun observeOpenCount(): Flow<Int>
-    fun observeByThread(threadId: String): Flow<List<PendingInput>>
-    /** OPEN -> ANSWERED. Throws [IllegalTransitionException] if already answered/discarded, or the option is out of range. */
-    suspend fun answer(id: String, answer: PendingAnswer, now: Instant): PendingInput
-    /** OPEN -> DISCARDED (no-op if already discarded). */
-    suspend fun discard(id: String, now: Instant): PendingInput
-    /** Sets `notifiedAt` once; true only the first time (a request's notification is never posted twice). */
-    suspend fun markNotified(id: String, now: Instant): Boolean
-}
-
-class PendingInputStoreImpl(db: LifeHubDatabase) : PendingInputStore {
-    private val dao = db.pendingInputDao()
-
-    override suspend fun create(
-        captureId: String, threadId: String?, kind: PendingKind, prompt: String, options: List<PendingOption>,
-        item: PendingItem?, foodRef: String?, now: Instant, id: String,
     ): PendingInput {
         val p = PendingInput(id, captureId, threadId, kind, prompt, PendingCodec.encodeOptions(options), item?.let(PendingCodec::encodeItem),
             foodRef, PendingStatus.OPEN, null, now, null)
@@ -88,13 +70,14 @@ class PendingInputStoreImpl(db: LifeHubDatabase) : PendingInputStore {
         return p
     }
 
-    override suspend fun get(id: String) = dao.get(id)
-    override suspend fun byCapture(captureId: String) = dao.byCapture(captureId)
-    override fun observeOpen() = dao.observeOpen()
-    override fun observeOpenCount() = dao.observeOpenCount()
-    override fun observeByThread(threadId: String) = dao.observeByThread(threadId)
+    suspend fun get(id: String) = dao.get(id)
+    suspend fun byCapture(captureId: String) = dao.byCapture(captureId)
+    fun observeOpen() = dao.observeOpen()
+    fun observeOpenCount() = dao.observeOpenCount()
+    fun observeByThread(threadId: String) = dao.observeByThread(threadId)
 
-    override suspend fun answer(id: String, answer: PendingAnswer, now: Instant): PendingInput {
+    /** OPEN -> ANSWERED. Throws [IllegalTransitionException] if already answered/discarded, or the option is out of range. */
+    suspend fun answer(id: String, answer: PendingAnswer, now: Instant): PendingInput {
         val p = dao.get(id) ?: throw IllegalTransitionException("Unknown request $id")
         if (!PendingStateMachine.canMove(p.status, PendingStatus.ANSWERED)) throw IllegalTransitionException("Request already ${p.status.name.lowercase()}")
         val n = PendingCodec.options(p).size
@@ -105,9 +88,11 @@ class PendingInputStoreImpl(db: LifeHubDatabase) : PendingInputStore {
         return next
     }
 
-    override suspend fun markNotified(id: String, now: Instant): Boolean = dao.markNotified(id, now) > 0
+    /** Sets `notifiedAt` once; true only the first time (a request's notification is never posted twice). */
+    suspend fun markNotified(id: String, now: Instant): Boolean = dao.markNotified(id, now) > 0
 
-    override suspend fun discard(id: String, now: Instant): PendingInput {
+    /** OPEN -> DISCARDED (no-op if already discarded). */
+    suspend fun discard(id: String, now: Instant): PendingInput {
         val p = dao.get(id) ?: throw IllegalTransitionException("Unknown request $id")
         if (p.status == PendingStatus.DISCARDED) return p
         if (!PendingStateMachine.canMove(p.status, PendingStatus.DISCARDED)) throw IllegalTransitionException("Request already ${p.status.name.lowercase()}")

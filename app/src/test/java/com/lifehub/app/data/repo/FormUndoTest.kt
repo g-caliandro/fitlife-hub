@@ -3,6 +3,7 @@ package com.lifehub.app.data.repo
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.lifehub.app.data.db.LifeHubDatabase
+import com.lifehub.app.data.db.dao.BodyDao
 import com.lifehub.app.data.model.BodyEntry
 import com.lifehub.app.feature.body.restoreBody
 import com.lifehub.app.feature.nutrition.copyLabel
@@ -19,14 +20,14 @@ import java.time.LocalDate
 @RunWith(RobolectricTestRunner::class)
 class FormUndoTest {
     private lateinit var db: LifeHubDatabase
-    private lateinit var macros: QuickAddRepositoryImpl
-    private lateinit var body: BodyRepositoryImpl
+    private lateinit var macros: QuickAddRepository
+    private lateinit var body: BodyDao
     private val now = Instant.parse("2026-11-12T10:00:00Z")
     private val d = LocalDate.of(2026, 11, 12)
 
     @Before fun setUp() {
         db = LifeHubDatabase.inMemory(ApplicationProvider.getApplicationContext<Context>())
-        macros = QuickAddRepositoryImpl(db); body = BodyRepositoryImpl(db)
+        macros = QuickAddRepository(db); body = db.bodyDao()
     }
     @After fun tearDown() { db.close() }
 

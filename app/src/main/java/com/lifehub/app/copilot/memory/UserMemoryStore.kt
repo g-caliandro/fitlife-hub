@@ -18,11 +18,25 @@ sealed interface MemorySaveResult {
  * store is capped ([MAX_ENTRIES] entries, [MAX_VALUE] characters per value). Written by `save_user_memory` (chat only) and
  * by hand from Copilot settings > Memory; removed only from that screen.
  */
-interface UserMemoryStore {
-    fun observe(): Flow<List<UserMemory>>
-    suspend fun all(): List<UserMemory>
-    suspend fun save(key: String, value: String, now: Instant): MemorySaveResult
-    suspend fun delete(key: String)
+class UserMemoryStore(db: LifeHubDatabase) {
+    private val dao = db.userMemoryDao()
+    fun observe() = dao.observeAll()
+    suspend fun all() = dao.all()
+
+    suspend fun save(key: String, value: String, now: Instant): MemorySaveResult {
+        val k = UserMemoryStore.normalizeKey(key) ?: return MemorySaveResult.Invalid("The key is empty.")
+        val v = value.trim().replace(Regex("\\s+"), " ")
+        if (v.isEmpty()) return MemorySaveResult.Invalid("The value is empty.")
+        if (v.length > UserMemoryStore.MAX_VALUE) return MemorySaveResult.Invalid("The value is longer than ${UserMemoryStore.MAX_VALUE} characters: keep it short.")
+        val old = dao.get(k)
+        if (old == null && dao.all().size >= UserMemoryStore.MAX_ENTRIES)
+            return MemorySaveResult.Invalid("The memory is full (${UserMemoryStore.MAX_ENTRIES} facts). Update an existing key instead; the user can delete facts in Copilot settings > Memory.")
+        val e = UserMemory(k, v, now)
+        dao.upsert(e)
+        return MemorySaveResult.Saved(e, old?.value)
+    }
+
+    suspend fun delete(key: String) = dao.delete(key)
 
     companion object {
         const val MAX_ENTRIES = 30
@@ -50,27 +64,6 @@ interface UserMemoryStore {
             return disliked.firstOrNull { d -> TextMatch.tokens(d).let { it.isNotEmpty() && words.containsAll(it) } }
         }
     }
-}
-
-class UserMemoryStoreImpl(db: LifeHubDatabase) : UserMemoryStore {
-    private val dao = db.userMemoryDao()
-    override fun observe() = dao.observeAll()
-    override suspend fun all() = dao.all()
-
-    override suspend fun save(key: String, value: String, now: Instant): MemorySaveResult {
-        val k = UserMemoryStore.normalizeKey(key) ?: return MemorySaveResult.Invalid("The key is empty.")
-        val v = value.trim().replace(Regex("\\s+"), " ")
-        if (v.isEmpty()) return MemorySaveResult.Invalid("The value is empty.")
-        if (v.length > UserMemoryStore.MAX_VALUE) return MemorySaveResult.Invalid("The value is longer than ${UserMemoryStore.MAX_VALUE} characters: keep it short.")
-        val old = dao.get(k)
-        if (old == null && dao.all().size >= UserMemoryStore.MAX_ENTRIES)
-            return MemorySaveResult.Invalid("The memory is full (${UserMemoryStore.MAX_ENTRIES} facts). Update an existing key instead; the user can delete facts in Copilot settings > Memory.")
-        val e = UserMemory(k, v, now)
-        dao.upsert(e)
-        return MemorySaveResult.Saved(e, old?.value)
-    }
-
-    override suspend fun delete(key: String) = dao.delete(key)
 }
 
 /** System-prompt section with the user memory (design doc §10), at most [UserMemoryStore.MAX_PROMPT_CHARS] characters. */

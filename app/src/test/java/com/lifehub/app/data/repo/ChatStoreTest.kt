@@ -25,7 +25,7 @@ import java.time.Instant
 class ChatStoreTest {
     private val ctx = ApplicationProvider.getApplicationContext<Context>()
     private val db = LifeHubDatabase.inMemory(ctx)
-    private val store = ChatStoreImpl(db)
+    private val store = ChatStore(db)
     private val t0 = Instant.parse("2026-11-16T10:00:00Z")
 
     @After fun tearDown() = db.close()
@@ -47,7 +47,7 @@ class ChatStoreTest {
         store.append(t.id, NewChatMessage(ChatRole.ASSISTANT, "Ti mancano 99 g."), t0.plusSeconds(4))
 
         // Reopen through a fresh store on the same DB (as after an app restart).
-        val reopened = ChatStoreImpl(db)
+        val reopened = ChatStore(db)
         val msgs = reopened.observeMessages(t.id).first()
         assertEquals(listOf(0, 1, 2, 3), msgs.map { it.seq })
         assertEquals(calls, ToolCallsCodec.decode(msgs[1].toolCallsJson))

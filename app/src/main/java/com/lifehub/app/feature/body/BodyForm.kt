@@ -1,5 +1,9 @@
 package com.lifehub.app.feature.body
 
+import com.lifehub.app.data.db.dao.BodyDao
+import com.lifehub.app.data.model.BodyEntry
+import java.time.LocalDate
+
 /** Pure validation for the body form (F-BODY-1). Errors are keys, mapped to strings in UI. */
 enum class BodyError { WeightRange, MuscleExceeds, FatExceeds, SumExceeds }
 
@@ -32,6 +36,6 @@ fun liveFatPct(weight: Double?, fat: Double?): Double? =
     if (weight != null && weight > 0 && fat != null) fat / weight * 100 else null
 
 /** Undo for a save/delete: put [prev] back, or remove the row if there was none. */
-suspend fun restoreBody(repo: com.lifehub.app.data.repo.BodyRepository, date: java.time.LocalDate, prev: com.lifehub.app.data.model.BodyEntry?) {
-    if (prev == null) repo.delete(date) else repo.upsert(prev)
+suspend fun restoreBody(dao: BodyDao, date: LocalDate, prev: BodyEntry?) {
+    if (prev == null) dao.delete(date) else dao.upsert(prev)
 }

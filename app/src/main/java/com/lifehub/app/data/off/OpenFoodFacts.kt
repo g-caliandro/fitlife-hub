@@ -16,6 +16,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.UUID
+import com.lifehub.app.domain.autoKcal
 
 /** Pure mapping of Open Food Facts JSON to [Food] (unit-tested with fixtures). */
 object OffMapper {
@@ -49,7 +50,7 @@ object OffMapper {
         return Food(
             id = newId(), source = FoodSource.OFF, barcode = p.str("code"), name = name,
             brand = p.str("brands")?.split(',')?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
-            kcal100 = kcal ?: (4 * pr + 4 * ca + 9 * fa), protein100 = pr, carbs100 = ca, fat100 = fa,
+            kcal100 = kcal ?: autoKcal(pr, ca, fa), protein100 = pr, carbs100 = ca, fat100 = fa,
             servingSizeG = parseServing(p.str("serving_size")), favorite = false, lastUsedAt = null,
             imageUrl = imageUrl(p),
         )

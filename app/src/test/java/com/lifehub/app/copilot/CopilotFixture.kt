@@ -5,9 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.lifehub.app.copilot.agent.AgentLoop
 import com.lifehub.app.copilot.agent.ToolRegistry
 import com.lifehub.app.copilot.capture.CaptureProcessor
-import com.lifehub.app.copilot.capture.CaptureStoreImpl
+import com.lifehub.app.copilot.capture.CaptureStore
 import com.lifehub.app.copilot.capture.FoodLogWriter
-import com.lifehub.app.copilot.capture.PendingInputStoreImpl
+import com.lifehub.app.copilot.capture.PendingInputStore
 import com.lifehub.app.copilot.food.FoodResolver
 import com.lifehub.app.copilot.food.OffCandidateCache
 import com.lifehub.app.copilot.food.RoomFoodCatalog
@@ -51,12 +51,12 @@ class CopilotFixture(seed: Boolean = true) {
     val time = FixedTimeSource(now, zone)
     val db = LifeHubDatabase.inMemory(ctx)
     val settings = SettingsRepository(ctx).also { it.clear() }
-    val food = FoodRepositoryImpl(db)
-    val goals = GoalRepositoryImpl(db)
-    val plans = PlanRepositoryImpl(db)
-    val sessions = SessionRepositoryImpl(db)
-    val body = BodyRepositoryImpl(db)
-    val chat = ChatStoreImpl(db)
+    val food = FoodRepository(db)
+    val goals = GoalRepository(db)
+    val plans = PlanRepository(db)
+    val sessions = SessionRepository(db)
+    val body = db.bodyDao()
+    val chat = ChatStore(db)
     val registry = ToolRegistry(ReadTools.all(food, { settings.current() }, goals, plans, sessions, body))
 
     // Phase 3: food resolution, captures, pending requests, meal log writer (real implementations, fake OFF).
@@ -65,8 +65,8 @@ class CopilotFixture(seed: Boolean = true) {
     val off = FakeOff()
     val offCache = OffCandidateCache()
     val resolver = FoodResolver(catalog, off, offCache)
-    val captures = CaptureStoreImpl(db)
-    val pending = PendingInputStoreImpl(db)
+    val captures = CaptureStore(db)
+    val pending = PendingInputStore(db)
     val writer = FoodLogWriter(db)
     val refs = FoodRefLookup(catalog, offCache, pending)
     // Phase 5: barcode lookup (fake Open Food Facts) and body weight.
@@ -75,8 +75,8 @@ class CopilotFixture(seed: Boolean = true) {
     val barcodes = BarcodeLookup(food, offApi, offBarcodes, db, time)
     val bodyLog = BodyLogWriter(db)
     // Phase 6: plan drafts, user memory, meal suggestions.
-    val drafts = com.lifehub.app.copilot.plan.PlanDraftStoreImpl(db)
-    val memory = com.lifehub.app.copilot.memory.UserMemoryStoreImpl(db)
+    val drafts = com.lifehub.app.copilot.plan.PlanDraftStore(db)
+    val memory = com.lifehub.app.copilot.memory.UserMemoryStore(db)
     val suggestions = com.lifehub.app.copilot.tools.MealSuggestions(captures, writer, time)
     /** Every copilot tool, as in AppContainer. */
     val fullRegistry = ToolRegistry(

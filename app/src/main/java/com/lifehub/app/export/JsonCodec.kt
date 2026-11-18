@@ -12,6 +12,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import com.lifehub.app.domain.fatPct
 
 class ImportException(message: String) : Exception(message)
 
@@ -93,7 +94,7 @@ object JsonCodec {
         },
         bodyEntries = s.bodyEntries.sortedBy { it.date }.map {
             BodyDto(it.date.toString(), it.weightKg, it.muscleKg, it.fatKg, it.updatedAt.toEpochMilli(),
-                it.fatKg?.let { f -> f / it.weightKg * 100 })
+                fatPct(it))
         },
         achievements = s.achievements.sortedWith(compareBy({ it.achievedOn }, { it.dedupeKey })).map {
             AchievementDto(it.id, it.kind, it.title, it.detail, it.value, it.unit, it.exerciseId, it.goalId, it.sessionId,
