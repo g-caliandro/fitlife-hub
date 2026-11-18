@@ -12,9 +12,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.security.AlgorithmParameters
+import java.security.InvalidAlgorithmParameterException
+import java.security.Key
+import java.security.SecureRandom
+import java.security.Security
+import java.security.spec.AlgorithmParameterSpec
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import javax.crypto.Cipher
+import javax.crypto.CipherSpi
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
@@ -39,6 +47,16 @@ class SecretStoreTest {
         assertEquals(secret, store().get(SecretNames.LLM_API_KEY)) // survives a new instance
         s.put(SecretNames.LLM_API_KEY, "other"); assertEquals("other", s.get(SecretNames.LLM_API_KEY))
         assertTrue(s.has(SecretNames.LLM_API_KEY))
+    }
+
+    /** Regression: on the phone "Save key" failed because the store passed its own IV, which a Keystore key rejects. */
+    @Test fun encryptionLetsTheCipherChooseTheIvLikeAndroidKeystoreRequires() {
+        val spis = mutableListOf<KeystoreLikeSpi>()
+        val s = EncryptedFileSecretStore(dir, { key }) { KeystoreLikeSpi().also { spis += it }.cipher() }
+        val groqKey = "gsk_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+        s.put(SecretNames.STT_API_KEY, groqKey)
+        assertEquals(groqKey, s.get(SecretNames.STT_API_KEY))
+        assertTrue(spis.any { it.encrypted }) // the strict cipher really handled the encryption
     }
 
     @Test fun absentKeyIsNull() {
@@ -98,4 +116,31 @@ class SecretStoreTest {
         assertEquals("••••", maskKey("short"))
         assertEquals("••••6789", maskKey(secret))
     }
+}
+
+/** AES/GCM that behaves like an AndroidKeyStore key with randomized encryption required: a caller IV on encrypt is refused. */
+class KeystoreLikeSpi : CipherSpi() {
+    private val d: Cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    var encrypted = false
+
+    fun cipher(): Cipher = object : Cipher(this, Security.getProvider("SunJCE"), "AES/GCM/NoPadding") {}
+
+    private fun check(opmode: Int, callerIv: Boolean) {
+        if (opmode == Cipher.ENCRYPT_MODE && callerIv) throw InvalidAlgorithmParameterException("Caller-provided IV not permitted")
+        if (opmode == Cipher.ENCRYPT_MODE) encrypted = true
+    }
+    override fun engineSetMode(mode: String?) {}
+    override fun engineSetPadding(padding: String?) {}
+    override fun engineGetBlockSize() = d.blockSize
+    override fun engineGetOutputSize(inputLen: Int) = d.getOutputSize(inputLen)
+    override fun engineGetIV(): ByteArray? = d.iv
+    override fun engineGetParameters(): AlgorithmParameters? = d.parameters
+    override fun engineInit(opmode: Int, key: Key, random: SecureRandom?) { check(opmode, false); d.init(opmode, key) }
+    override fun engineInit(opmode: Int, key: Key, params: AlgorithmParameterSpec?, random: SecureRandom?) { check(opmode, params != null); d.init(opmode, key, params) }
+    override fun engineInit(opmode: Int, key: Key, params: AlgorithmParameters?, random: SecureRandom?) { check(opmode, params != null); d.init(opmode, key, params) }
+    override fun engineUpdate(input: ByteArray, offset: Int, len: Int): ByteArray? = d.update(input, offset, len)
+    override fun engineUpdate(input: ByteArray, offset: Int, len: Int, output: ByteArray, outOffset: Int) = d.update(input, offset, len, output, outOffset)
+    override fun engineUpdateAAD(src: ByteArray, offset: Int, len: Int) = d.updateAAD(src, offset, len)
+    override fun engineDoFinal(input: ByteArray, offset: Int, len: Int): ByteArray = d.doFinal(input, offset, len)
+    override fun engineDoFinal(input: ByteArray, offset: Int, len: Int, output: ByteArray, outOffset: Int) = d.doFinal(input, offset, len, output, outOffset)
 }

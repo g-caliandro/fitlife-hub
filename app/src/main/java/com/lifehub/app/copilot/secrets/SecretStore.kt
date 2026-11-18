@@ -5,7 +5,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.io.File
 import java.security.KeyStore
-import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -31,11 +30,14 @@ interface SecretStore {
 /**
  * AES-256-GCM. Each secret is one file `<dir>/<name>.bin` = 12-byte IV + ciphertext; the secret's name is the GCM
  * associated data, so a file cannot be swapped under another name. [dir] must live in `noBackupFilesDir`.
- * [key] is a non-extractable Android Keystore key in production; tests pass a software key.
+ * [key] is a non-extractable Android Keystore key in production; tests pass a software key (and may pass a [newCipher]
+ * that enforces the Keystore rules).
  */
-class EncryptedFileSecretStore(private val dir: File, private val key: () -> SecretKey) : SecretStore {
-    private val random = SecureRandom()
-
+class EncryptedFileSecretStore(
+    private val dir: File,
+    private val key: () -> SecretKey,
+    private val newCipher: () -> Cipher = { Cipher.getInstance(TRANSFORMATION) },
+) : SecretStore {
     private fun file(name: String): File {
         require(name.isNotEmpty() && name.all { it.isLetterOrDigit() || it == '_' }) { "bad secret name" }
         return File(dir, "$name.bin")
@@ -48,7 +50,7 @@ class EncryptedFileSecretStore(private val dir: File, private val key: () -> Sec
         return try {
             val bytes = f.readBytes()
             if (bytes.size <= IV_BYTES) return null
-            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val cipher = newCipher()
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, bytes, 0, IV_BYTES))
             cipher.updateAAD(name.toByteArray(Charsets.UTF_8))
             String(cipher.doFinal(bytes, IV_BYTES, bytes.size - IV_BYTES), Charsets.UTF_8)
@@ -60,10 +62,12 @@ class EncryptedFileSecretStore(private val dir: File, private val key: () -> Sec
         val f = file(name)
         if (value.isEmpty()) { remove(name); return }
         dir.mkdirs()
-        val iv = ByteArray(IV_BYTES).also { random.nextBytes(it) }
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, iv))
+        // The cipher picks the IV: an Android Keystore key (randomized encryption required) rejects a caller-provided one.
+        val cipher = newCipher()
+        cipher.init(Cipher.ENCRYPT_MODE, key())
         cipher.updateAAD(name.toByteArray(Charsets.UTF_8))
+        val iv = cipher.iv
+        check(iv.size == IV_BYTES) { "Unexpected IV length ${iv.size}" }
         val out = iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         val tmp = File(dir, "$name.tmp")
         tmp.writeBytes(out)
@@ -82,7 +86,7 @@ class EncryptedFileSecretStore(private val dir: File, private val key: () -> Sec
 
         /** Production store: ciphertext under `noBackupFilesDir` (never backed up), key in the Android Keystore. */
         fun create(context: Context): EncryptedFileSecretStore =
-            EncryptedFileSecretStore(File(context.applicationContext.noBackupFilesDir, DIR_NAME)) { keystoreKey() }
+            EncryptedFileSecretStore(File(context.applicationContext.noBackupFilesDir, DIR_NAME), key = { keystoreKey() })
 
         @Synchronized
         private fun keystoreKey(): SecretKey {
