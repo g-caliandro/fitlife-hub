@@ -4,7 +4,8 @@ import kotlinx.serialization.json.JsonObject
 
 /** Chat messages in the OpenAI-compatible shape. */
 sealed interface LlmMessage {
-    data class System(val content: String) : LlmMessage
+    /** The first [staticLength] chars of [content] never change between turns (cache breakpoint after them); 0 = unknown. */
+    data class System(val content: String, val staticLength: Int = 0) : LlmMessage
     data class User(val content: String) : LlmMessage
     /** [content] may be null when the model only requests tools. */
     data class Assistant(val content: String?, val toolCalls: List<LlmToolCall> = emptyList()) : LlmMessage
@@ -23,7 +24,16 @@ sealed interface LlmToolChoice {
     data class Function(val name: String) : LlmToolChoice
 }
 
-data class LlmReply(val message: LlmMessage.Assistant, val finishReason: String?)
+/** Token usage of one call as reported by the provider ([cachedTokens] = read from the prompt cache, [costUsd] when the gateway reports it). */
+data class LlmUsage(
+    val promptTokens: Int, val completionTokens: Int, val cachedTokens: Int = 0, val cacheWriteTokens: Int = 0, val costUsd: Double? = null,
+)
+
+/** [generationId] (OpenRouter: look it up in Activity) and [model] (what actually answered) are for the debug log only. */
+data class LlmReply(
+    val message: LlmMessage.Assistant, val finishReason: String?,
+    val usage: LlmUsage? = null, val generationId: String? = null, val model: String? = null,
+)
 
 /** Typed, user-readable failures. [message] is safe to show in the UI. */
 sealed class LlmError(val message: String) {

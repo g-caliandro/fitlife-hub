@@ -18,7 +18,7 @@ Approved by Gabriele after phase 0. These override the design doc and the phase 
 14. **"Needs an answer" notification**: 2 quick choices + inline "Reply" (Android's 3-action limit).
 15. **API keys**: AES-GCM with a key in the Android Keystore, ciphertext stored under `noBackupFilesDir`. Keys never enter `Settings`/SharedPreferences or the JSON export.
 16. **Google backup: leave as is for now.** Do NOT add `dataExtractionRules`/`fullBackupContent` and do not change `allowBackup`. Keys stay out of backup only by living in `noBackupFilesDir`.
-17. **Provider defaults** (editable in settings): LLM = OpenRouter `https://openrouter.ai/api/v1`, model `anthropic/claude-haiku-5.5`; STT = Groq, model `whisper-large-v3-turbo`, language `it`.
+17. **Provider defaults** (editable in settings): LLM = OpenRouter `https://openrouter.ai/api/v1`, model `anthropic/claude-haiku-5.5`; STT = OpenRouter (same key as the LLM, used when no STT key is saved), model `openai/whisper-large-v3-turbo`, language `it` (changed from Groq on 2026-11-18: one provider, DeepInfra route about $0.011/h vs about $0.04/h; Groq stays selectable by URL + key).
 18. **Recording** happens from the visible capture activity. No foreground service; the manifest note forbidding them stays respected.
 19. **No new dependencies** (per `02-architecture.md`), unless a phase proves one unavoidable — then stop and report.
 20. **Household measure values** must be validated by Gabriele before phase 3 inserts them.

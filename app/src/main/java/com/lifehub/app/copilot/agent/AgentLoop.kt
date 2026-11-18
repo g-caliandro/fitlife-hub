@@ -1,5 +1,6 @@
 package com.lifehub.app.copilot.agent
 
+import com.lifehub.app.copilot.debug.CopilotDebugLog
 import com.lifehub.app.copilot.llm.LlmClient
 import com.lifehub.app.copilot.llm.LlmError
 import com.lifehub.app.copilot.llm.LlmMessage
@@ -10,6 +11,11 @@ import com.lifehub.app.data.model.ChatRole
 import com.lifehub.app.data.repo.ChatStore
 import com.lifehub.app.data.repo.NewChatMessage
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 /** Tunables of [AgentLoop] (configurable in code, design doc §10). */
 data class AgentConfig(
@@ -66,6 +72,8 @@ class AgentLoop(
     private val time: TimeSource,
     private val config: AgentConfig = AgentConfig(),
     private val contextProviders: List<ContextProvider> = emptyList(),
+    /** Debug trace of turns, model calls (usage, cost) and tool calls; null = none. */
+    private val debug: CopilotDebugLog? = null,
 ) {
     /** Stores [text] as a USER message, then runs the turn. */
     suspend fun send(threadId: String, text: String, options: TurnOptions = TurnOptions()): TurnResult {
@@ -75,29 +83,75 @@ class AgentLoop(
 
     /** Runs (or retries) the turn for the stored thread, whose last turn starts at a USER message. */
     suspend fun run(threadId: String, options: TurnOptions = TurnOptions()): TurnResult =
-        withTimeoutOrNull(config.turnTimeoutMs) { loop(threadId, options) } ?: TurnResult.Failed(TurnError.Timeout)
+        withTimeoutOrNull(config.turnTimeoutMs) { loop(threadId, options) }
+            ?: TurnResult.Failed(TurnError.Timeout).also { debug?.record("turn_end") { put("thread", threadId); put("capture", options.captureId); put("result", "timeout") } }
 
     private suspend fun loop(threadId: String, options: TurnOptions): TurnResult {
         val now = time.now()
         val ctx = ToolContext(now, time.zone, threadId, options.captureId)
         val sections = contextProviders.mapNotNull { it.section(ctx) } + options.extraContext
-        val system = LlmMessage.System(AgentContext.systemPrompt(now, time.zone, sections))
+        // The base prompt comes first and never changes: it is the cacheable part (the clock and sections follow it).
+        val system = LlmMessage.System(AgentContext.systemPrompt(now, time.zone, sections), staticLength = AgentContext.BASE_PROMPT.length)
         val tools = registry.definitions(options.toolFilter)
         val history = HistoryWindow.build(chat.messages(threadId), config.historyMaxMessages, config.historyToolTurns)
         val turn = mutableListOf<LlmMessage>()
         var iterations = 0
+
+        val started = System.nanoTime()
+        var llmCalls = 0; var promptTokens = 0; var completionTokens = 0; var cachedTokens = 0; var costUsd: Double? = null
+        fun finish(r: TurnResult): TurnResult {
+            debug?.record("turn_end") {
+                put("thread", threadId); put("capture", options.captureId)
+                put("result", when (r) { is TurnResult.Answered -> "answered"; is TurnResult.AwaitingInput -> "awaiting_input"; is TurnResult.Failed -> "failed" })
+                (r as? TurnResult.Failed)?.let { put("error", it.error.message) }
+                put("llm_calls", llmCalls); put("prompt_tokens", promptTokens); put("completion_tokens", completionTokens); put("cached_tokens", cachedTokens)
+                costUsd?.let { put("cost_usd", it) }
+                put("ms", (System.nanoTime() - started) / 1_000_000)
+            }
+            return r
+        }
+        debug?.record("turn") {
+            put("thread", threadId); put("capture", options.captureId)
+            put("system", CopilotDebugLog.clip(system.content, 20_000))
+            put("tools", JsonArray(tools.map { JsonPrimitive(it.name) }))
+            put("history", JsonArray(history.map(::logMessage)))
+        }
         while (true) {
-            val reply = when (val r = llm.chat(listOf(system) + history + turn, tools, LlmToolChoice.Auto, config.maxTokens)) {
-                is LlmResult.Failure -> return TurnResult.Failed(TurnError.Llm(r.error))
-                is LlmResult.Ok -> r.reply.message
+            val callStart = System.nanoTime()
+            val r = llm.chat(listOf(system) + history + turn, tools, LlmToolChoice.Auto, config.maxTokens)
+            val callMs = (System.nanoTime() - callStart) / 1_000_000
+            llmCalls++
+            val ok = when (r) {
+                is LlmResult.Failure -> {
+                    debug?.record("llm_error") { put("thread", threadId); put("capture", options.captureId); put("round", iterations + 1); put("error", r.error.message); put("ms", callMs) }
+                    return finish(TurnResult.Failed(TurnError.Llm(r.error)))
+                }
+                is LlmResult.Ok -> r.reply
+            }
+            ok.usage?.let { u ->
+                promptTokens += u.promptTokens; completionTokens += u.completionTokens; cachedTokens += u.cachedTokens
+                u.costUsd?.let { costUsd = (costUsd ?: 0.0) + it }
+            }
+            val reply = ok.message
+            debug?.record("llm") {
+                put("thread", threadId); put("capture", options.captureId); put("round", iterations + 1); put("ms", callMs)
+                put("model", ok.model); put("generation_id", ok.generationId); put("finish", ok.finishReason)
+                ok.usage?.let { u ->
+                    putJsonObject("usage") {
+                        put("prompt", u.promptTokens); put("completion", u.completionTokens); put("cached", u.cachedTokens); put("cache_write", u.cacheWriteTokens)
+                        u.costUsd?.let { put("cost_usd", it) }
+                    }
+                }
+                put("text", CopilotDebugLog.clip(reply.content))
+                put("tool_calls", JsonArray(reply.toolCalls.map { c -> CopilotDebugLog.obj { put("id", c.id); put("name", c.name); put("arguments", CopilotDebugLog.clip(c.arguments)) } }))
             }
             if (reply.toolCalls.isEmpty()) {
                 val text = reply.content?.trim().orEmpty()
-                if (text.isEmpty()) return TurnResult.Failed(TurnError.Llm(LlmError.Malformed("empty reply")))
+                if (text.isEmpty()) return finish(TurnResult.Failed(TurnError.Llm(LlmError.Malformed("empty reply"))))
                 chat.append(threadId, NewChatMessage(ChatRole.ASSISTANT, text, captureId = options.captureId), time.now())
-                return TurnResult.Answered(text)
+                return finish(TurnResult.Answered(text))
             }
-            if (iterations >= config.maxToolIterations) return TurnResult.Failed(TurnError.IterationLimit)
+            if (iterations >= config.maxToolIterations) return finish(TurnResult.Failed(TurnError.IterationLimit))
             iterations++
             chat.append(
                 threadId,
@@ -107,7 +161,13 @@ class AgentLoop(
             turn += reply
             val suspended = mutableListOf<String>()
             for (call in reply.toolCalls) {
+                val toolStart = System.nanoTime()
                 val exec = registry.execute(call, ctx.copy(now = time.now()), options.toolFilter)
+                debug?.record("tool") {
+                    put("thread", threadId); put("capture", options.captureId); put("round", iterations); put("name", call.name)
+                    put("arguments", CopilotDebugLog.clip(call.arguments)); put("result", CopilotDebugLog.clip(exec.content))
+                    put("card", exec.card != null); put("ms", (System.nanoTime() - toolStart) / 1_000_000)
+                }
                 val card = exec.card?.let(CardCodec::encode)
                 chat.append(
                     threadId,
@@ -122,7 +182,19 @@ class AgentLoop(
             }
             // Every call of the round is executed and persisted first (resolved items are logged even when another
             // item of the same sentence needs an answer), then the turn stops.
-            if (suspended.isNotEmpty()) return TurnResult.AwaitingInput(suspended)
+            if (suspended.isNotEmpty()) return finish(TurnResult.AwaitingInput(suspended))
+        }
+    }
+
+    private fun logMessage(m: LlmMessage): JsonObject = CopilotDebugLog.obj {
+        when (m) {
+            is LlmMessage.System -> { put("role", "system"); put("content", CopilotDebugLog.clip(m.content)) }
+            is LlmMessage.User -> { put("role", "user"); put("content", CopilotDebugLog.clip(m.content)) }
+            is LlmMessage.Assistant -> {
+                put("role", "assistant"); put("content", CopilotDebugLog.clip(m.content))
+                if (m.toolCalls.isNotEmpty()) put("tool_calls", JsonArray(m.toolCalls.map { c -> CopilotDebugLog.obj { put("name", c.name); put("arguments", CopilotDebugLog.clip(c.arguments)) } }))
+            }
+            is LlmMessage.Tool -> { put("role", "tool"); put("content", CopilotDebugLog.clip(m.content)) }
         }
     }
 }

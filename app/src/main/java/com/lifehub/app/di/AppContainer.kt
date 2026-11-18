@@ -53,7 +53,9 @@ import com.lifehub.app.copilot.notify.CopilotActions
 import com.lifehub.app.copilot.notify.NotificationCenter
 import com.lifehub.app.copilot.stt.CaptureAudioFiles
 import com.lifehub.app.copilot.stt.MediaVoiceRecorder
+import com.lifehub.app.copilot.debug.CopilotDebugLog
 import com.lifehub.app.copilot.stt.SttConfig
+import com.lifehub.app.copilot.stt.sttApiKey
 import com.lifehub.app.copilot.stt.Transcriber
 import com.lifehub.app.copilot.stt.VoiceRecorder
 import com.lifehub.app.copilot.stt.WhisperApiTranscriber
@@ -115,11 +117,17 @@ class AppContainer(context: Context, val time: TimeSource = SystemTimeSource()) 
                 SaveUserMemoryTool(userMemory),
             ),
     )
-    val agent = AgentLoop(llm, copilotTools, chat, time, contextProviders = listOf(MemoryContext(userMemory)))
+    /** Trace of turns, model calls (tokens, cache, cost) and tools, exportable from Copilot settings. Never backed up, never holds a key. */
+    val copilotDebugLog = CopilotDebugLog(java.io.File(appContext.noBackupFilesDir, "copilot-debug/copilot-log.jsonl"))
+    val agent = AgentLoop(llm, copilotTools, chat, time, contextProviders = listOf(MemoryContext(userMemory)), debug = copilotDebugLog)
 
     // Phase 4: voice, background worker, notifications.
     val transcriber: Transcriber = WhisperApiTranscriber(
-        config = { copilotSettings.current().let { SttConfig(it.sttBaseUrl, it.sttModel, secrets.get(SecretNames.STT_API_KEY)) } },
+        config = {
+            copilotSettings.current().let {
+                SttConfig(it.sttBaseUrl, it.sttModel, sttApiKey(it.sttBaseUrl, it.llmBaseUrl, secrets.get(SecretNames.STT_API_KEY), secrets.get(SecretNames.LLM_API_KEY)))
+            }
+        },
         transport = UrlConnectionTransport(),
     )
     val captureAudio = CaptureAudioFiles.forContext(appContext)

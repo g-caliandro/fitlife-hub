@@ -50,6 +50,17 @@ class SttConfig(val baseUrl: String, val model: String, val apiKey: String?) {
     override fun toString() = "SttConfig(baseUrl=$baseUrl, model=$model, apiKey=<redacted>)"
 }
 
+/**
+ * The key for transcription: the one saved for it, else (same provider host as the language model, e.g. OpenRouter for
+ * both) the language model's key, so a single key is enough. Never falls back across different hosts.
+ */
+fun sttApiKey(sttBaseUrl: String, llmBaseUrl: String, sttKey: String?, llmKey: String?): String? {
+    sttKey?.takeIf { it.isNotBlank() }?.let { return it }
+    fun host(u: String) = runCatching { java.net.URI(u.trim()).host }.getOrNull()?.lowercase()?.takeIf { it.isNotEmpty() }
+    val h = host(sttBaseUrl) ?: return null
+    return if (h == host(llmBaseUrl)) llmKey?.takeIf { it.isNotBlank() } else null
+}
+
 /** One multipart/form-data body (RFC 7578): text fields + one file part. Pure, unit-tested. */
 class MultipartBody(val boundary: String = "lifehub-" + UUID.randomUUID().toString().replace("-", "")) {
     private val out = ByteArrayOutputStream()
@@ -68,7 +79,7 @@ class MultipartBody(val boundary: String = "lifehub-" + UUID.randomUUID().toStri
     val contentType: String get() = "multipart/form-data; boundary=$boundary"
 }
 
-/** Pure request/response code for the OpenAI-compatible `audio/transcriptions` endpoint (Groq, OpenAI, ...). */
+/** Pure request/response code for the OpenAI-compatible `audio/transcriptions` endpoint (OpenRouter, Groq, OpenAI, ...). */
 object WhisperCodec {
     /** Groq free tier: 25 MB per request (https://console.groq.com/docs/speech-to-text, checked 2026-11-16). */
     const val MAX_BYTES = 25L * 1024 * 1024

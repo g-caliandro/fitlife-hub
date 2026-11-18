@@ -19,6 +19,7 @@ import com.lifehub.app.copilot.capture.IllegalTransitionException
 import com.lifehub.app.copilot.capture.PendingInputStore
 import com.lifehub.app.data.model.CaptureStatus
 import com.lifehub.app.data.model.PendingInput
+import com.lifehub.app.data.model.PendingStatus
 import com.lifehub.app.core.time.TimeSource
 import com.lifehub.app.data.model.ChatMessage
 import com.lifehub.app.data.model.ChatOrigin
@@ -162,6 +163,14 @@ class ChatViewModel(
 
     fun removeAttachment() { attachment.value = null }
 
+    /** Starts an empty conversation (the thread is created on the first message); the old one stays in the conversations list. */
+    fun newChat() {
+        if (working.value || session != null) return
+        attachment.value = null
+        problem.value = if (hasKey()) null else ChatProblem.MissingKey
+        threadId.value = null
+    }
+
     val state: StateFlow<ChatUiState> = combine(
         threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else chat.observeMessages(id) },
         threadId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else pendingStore.observeByThread(id) },
@@ -221,6 +230,13 @@ class ChatViewModel(
         val attached = attachment.value?.foodId
         attachment.value = null
         turn {
+            // An open request of this thread is waiting for exactly this: the typed text answers it and resumes its capture
+            // (same meal; a new capture would not know what was already logged and would log it again).
+            val open = if (attached == null) threadId.value?.let { id -> pendingStore.observeByThread(id).first().lastOrNull { it.status == PendingStatus.OPEN } } else null
+            if (open != null) {
+                return@turn try { processor.answer(open.id, text = t)?.turn ?: TurnResult.Answered("") }
+                catch (_: IllegalTransitionException) { TurnResult.Answered("") }
+            }
             // Title = the first message, cheaply (no model call).
             val id = threadId.value ?: chat.createThread(CaptureRunner.threadTitle(t), ChatOrigin.CHAT, time.now()).id.also { threadId.value = it }
             // Every chat message that can write goes through a capture (idempotent writes, Undo, pending requests).

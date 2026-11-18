@@ -18,8 +18,12 @@ data class CopilotSettings(
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://openrouter.ai/api/v1"
         const val DEFAULT_LLM_MODEL = "anthropic/claude-haiku-5.5"
-        const val DEFAULT_STT_BASE_URL = "https://api.groq.com/openai/v1"
-        const val DEFAULT_STT_MODEL = "whisper-large-v3-turbo"
+        /** One OpenRouter key does both: chat and transcription (whisper-large-v3-turbo, cheapest provider routed by OpenRouter). */
+        const val DEFAULT_STT_BASE_URL = "https://openrouter.ai/api/v1"
+        const val DEFAULT_STT_MODEL = "openai/whisper-large-v3-turbo"
+        /** The defaults before OpenRouter transcription: a pair still saved as is was never chosen by the user, so it moves to the new defaults. */
+        const val LEGACY_STT_BASE_URL = "https://api.groq.com/openai/v1"
+        const val LEGACY_STT_MODEL = "whisper-large-v3-turbo"
         const val DEFAULT_STT_LANGUAGE = "it"
     }
 }
@@ -36,9 +40,12 @@ class CopilotSettingsRepository(context: Context) {
     private fun load(): CopilotSettings {
         val d = CopilotSettings()
         fun s(k: String, def: String) = prefs.getString(k, null)?.takeIf { it.isNotBlank() } ?: def
+        val sttBase = s("sttBaseUrl", d.sttBaseUrl)
+        val sttModel = s("sttModel", d.sttModel)
+        val legacy = sttBase.trimEnd('/') == CopilotSettings.LEGACY_STT_BASE_URL && sttModel == CopilotSettings.LEGACY_STT_MODEL
         return CopilotSettings(
             llmBaseUrl = s("llmBaseUrl", d.llmBaseUrl), llmModel = s("llmModel", d.llmModel),
-            sttBaseUrl = s("sttBaseUrl", d.sttBaseUrl), sttModel = s("sttModel", d.sttModel),
+            sttBaseUrl = if (legacy) d.sttBaseUrl else sttBase, sttModel = if (legacy) d.sttModel else sttModel,
             sttLanguage = s("sttLanguage", d.sttLanguage),
             notificationsEnabled = prefs.getBoolean("notificationsEnabled", d.notificationsEnabled),
         )

@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
@@ -103,11 +104,11 @@ fun ChatRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
         onOpenDiary = { d -> DiaryJump.request(d); onNavigate(Routes.CALENDAR) },
         actions = CardActions(
             onUndo = vm::undo, onChoose = { id, i -> vm.answer(id, option = i) },
-            onReply = { id, t -> vm.answer(id, text = t) }, onDiscard = vm::discard,
+            onDiscard = vm::discard,
             onRejectDraft = vm::rejectDraft, onOpenDraft = { onNavigate(Routes.planDraft(it)) },
             onLogSuggestion = vm::logSuggestion,
         ),
-        onOpenThreads = { onNavigate(Routes.COPILOT_THREADS) },
+        onOpenThreads = { onNavigate(Routes.COPILOT_THREADS) }, onNewChat = vm::newChat,
         onApproveDraft = vm::approveDraft,
     )
 }
@@ -130,6 +131,7 @@ fun ChatScreen(
     onBarcode: () -> Unit = {},
     onRemoveAttachment: () -> Unit = {},
     onOpenThreads: () -> Unit = {},
+    onNewChat: () -> Unit = {},
     /** Approve confirmed in the dialog: draft id + whether to archive the active plans on the same weekdays. */
     onApproveDraft: (String, Boolean) -> Unit = { _, _ -> },
 ) {
@@ -146,6 +148,7 @@ fun ChatScreen(
     LaunchedEffect(rows) { if (rows > 0) list.animateScrollToItem(rows - 1) }
     Column(Modifier.fillMaxSize().background(c.background).imePadding()) {
         LhTopBar("Copilot", onBack = onBack, icon = Icons.Outlined.AutoAwesome, actions = {
+            LhIconAction(Icons.Outlined.Add, "New chat", onNewChat, Modifier.testTag("chat-new"))
             LhIconAction(Icons.Outlined.History, "Conversations", onOpenThreads, Modifier.testTag("chat-threads"))
             InboxAction(state.inboxCount, onOpenInbox)
             LhIconAction(Icons.Outlined.Settings, "Copilot settings", onOpenSettings, Modifier.testTag("chat-settings"))

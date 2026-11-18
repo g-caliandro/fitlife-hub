@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -21,14 +22,25 @@ object OpenAiCodec {
         runCatching { java.net.URI(baseUrl.trim()).host?.lowercase() }.getOrNull()
             ?.let { it == "openrouter.ai" || it.endsWith(".openrouter.ai") } == true
 
+    /**
+     * Anthropic models on OpenRouter get prompt caching: an automatic breakpoint that advances with the conversation (the
+     * tool rounds of one turn re-read the previous round) plus one after the static part of the system prompt (tools +
+     * base prompt, shared by every turn). Other models/gateways get the plain request (OpenAI and Gemini cache implicitly).
+     */
+    fun supportsCache(model: String, openRouter: Boolean): Boolean = openRouter && model.trim().startsWith("anthropic/")
+
     fun chatUrl(baseUrl: String): String = baseUrl.trim().trimEnd('/') + "/chat/completions"
 
     fun buildRequest(
         model: String, messages: List<LlmMessage>, tools: List<LlmTool>, toolChoice: LlmToolChoice,
         maxTokens: Int?, openRouter: Boolean,
     ): String = buildJsonObject {
+        val cache = supportsCache(model, openRouter)
         put("model", model)
-        put("messages", buildJsonArray { messages.forEach { add(message(it)) } })
+        put("messages", buildJsonArray { messages.forEach { add(message(it, cache)) } })
+        if (cache) putJsonObject("cache_control") { put("type", "ephemeral") }
+        // OpenRouter: report cost in the response's usage.
+        if (openRouter) putJsonObject("usage") { put("include", true) }
         if (tools.isNotEmpty()) {
             put("tools", buildJsonArray {
                 tools.forEach { t ->
@@ -53,9 +65,18 @@ object OpenAiCodec {
         if (maxTokens != null) put("max_tokens", maxTokens)
     }.toString()
 
-    private fun message(m: LlmMessage): JsonObject = buildJsonObject {
+    private fun message(m: LlmMessage, cache: Boolean = false): JsonObject = buildJsonObject {
         when (m) {
-            is LlmMessage.System -> { put("role", "system"); put("content", m.content) }
+            is LlmMessage.System -> {
+                put("role", "system")
+                if (cache && m.staticLength in 1 until m.content.length) put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text"); put("text", m.content.substring(0, m.staticLength))
+                        putJsonObject("cache_control") { put("type", "ephemeral") }
+                    })
+                    add(buildJsonObject { put("type", "text"); put("text", m.content.substring(m.staticLength)) })
+                }) else put("content", m.content)
+            }
             is LlmMessage.User -> { put("role", "user"); put("content", m.content) }
             is LlmMessage.Tool -> { put("role", "tool"); put("tool_call_id", m.toolCallId); put("content", m.content) }
             is LlmMessage.Assistant -> {
@@ -102,7 +123,18 @@ object OpenAiCodec {
             }
         }
         val finish = (choice["finish_reason"] as? JsonPrimitive)?.contentOrNull
-        return LlmResult.Ok(LlmReply(LlmMessage.Assistant(content, calls), finish))
+        return LlmResult.Ok(LlmReply(LlmMessage.Assistant(content, calls), finish, usage(root["usage"] as? JsonObject), (root["id"] as? JsonPrimitive)?.contentOrNull, (root["model"] as? JsonPrimitive)?.contentOrNull))
+    }
+
+    private fun usage(u: JsonObject?): LlmUsage? {
+        u ?: return null
+        fun int(o: JsonObject?, k: String) = (o?.get(k) as? JsonPrimitive)?.intOrNull
+        val details = u["prompt_tokens_details"] as? JsonObject
+        return LlmUsage(
+            int(u, "prompt_tokens") ?: 0, int(u, "completion_tokens") ?: 0,
+            int(details, "cached_tokens") ?: 0, int(details, "cache_write_tokens") ?: 0,
+            (u["cost"] as? JsonPrimitive)?.doubleOrNull,
+        )
     }
 
     private fun malformed(reason: String) = LlmResult.Failure(LlmError.Malformed(reason))

@@ -56,7 +56,8 @@ import kotlin.math.roundToInt
 data class CardActions(
     val onUndo: (captureId: String) -> Unit = {},
     val onChoose: (pendingId: String, option: Int) -> Unit = { _, _ -> },
-    val onReply: (pendingId: String, text: String) -> Unit = { _, _ -> },
+    /** Null in the chat (the composer is the reply); the inbox has no composer, so it shows a reply field. */
+    val onReply: ((pendingId: String, text: String) -> Unit)? = null,
     val onDiscard: (pendingId: String) -> Unit = {},
     /** Plan draft card: Approve opens the confirmation with the "archive plans on the same days" checkbox. */
     val onApproveDraft: (draftId: String) -> Unit = {},
@@ -170,7 +171,7 @@ fun WeightLoggedCardView(card: WeightLoggedCard, undone: Boolean, today: LocalDa
     }
 }
 
-/** "Pending request": question + options (an estimate is marked as such) or a reply field; Choose / Reply / Discard. */
+/** "Pending request": question + options (an estimate is marked as such); Choose / Discard, plus a reply field where there is no composer (inbox). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PendingInputCardView(card: PendingInputCard, live: PendingInput?, enabled: Boolean, actions: CardActions, modifier: Modifier = Modifier) {
@@ -200,11 +201,14 @@ fun PendingInputCardView(card: PendingInputCard, live: PendingInput?, enabled: B
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+                val onReply = actions.onReply
                 var reply by rememberSaveable(card.pendingInputId) { mutableStateOf("") }
-                LhTextField(reply, { reply = it }, Modifier.fillMaxWidth().testTag("pending-reply"), placeholder = "Reply", enabled = enabled, maxLength = 300)
-                Spacer(Modifier.height(8.dp))
+                if (onReply != null) {
+                    LhTextField(reply, { reply = it }, Modifier.fillMaxWidth().testTag("pending-reply"), placeholder = "Reply", enabled = enabled, maxLength = 300)
+                    Spacer(Modifier.height(8.dp))
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LhButton("Reply", { actions.onReply(card.pendingInputId, reply); reply = "" }, Modifier.testTag("pending-send"),
+                    if (onReply != null) LhButton("Reply", { onReply(card.pendingInputId, reply); reply = "" }, Modifier.testTag("pending-send"),
                         size = LhButtonSize.Sm, leadingIcon = Icons.AutoMirrored.Outlined.Reply, enabled = enabled && reply.isNotBlank())
                     LhButton("Discard", { actions.onDiscard(card.pendingInputId) }, Modifier.testTag("pending-discard"),
                         variant = LhButtonVariant.Outline, size = LhButtonSize.Sm, leadingIcon = Icons.Outlined.Close, enabled = enabled)

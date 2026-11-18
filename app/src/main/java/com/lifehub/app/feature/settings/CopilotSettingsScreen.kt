@@ -55,6 +55,11 @@ fun CopilotSettingsRoute(onBack: () -> Unit, onOpenMeasures: () -> Unit = {}, on
         onSaveLlmKey = vm::saveLlmKey, onRemoveLlmKey = vm::removeLlmKey,
         onSttBaseUrl = vm::setSttBaseUrl, onSttModel = vm::setSttModel, onSttLanguage = vm::setSttLanguage,
         onSaveSttKey = vm::saveSttKey, onRemoveSttKey = vm::removeSttKey,
+        onShareLog = {
+            val f = com.lifehub.app.export.ExportFiles.writeToCache(ctx, "copilot-log.jsonl") { }
+            if (vm.exportLog(f)) ctx.startActivity(com.lifehub.app.export.ExportFiles.shareIntent(ctx, f, "text/plain")) else f.delete()
+        },
+        onClearLog = vm::clearLog,
         onTest = vm::testConnection, onOpenMeasures = onOpenMeasures, onOpenMemory = onOpenMemory,
         onNotifications = { on ->
             vm.setNotificationsEnabled(on)
@@ -71,6 +76,8 @@ fun CopilotSettingsScreen(
     onSaveLlmKey: (String) -> Unit = {}, onRemoveLlmKey: () -> Unit = {},
     onSttBaseUrl: (String) -> Unit = {}, onSttModel: (String) -> Unit = {}, onSttLanguage: (String) -> Unit = {},
     onSaveSttKey: (String) -> Unit = {}, onRemoveSttKey: () -> Unit = {},
+    onShareLog: () -> Unit = {},
+    onClearLog: () -> Unit = {},
     onTest: () -> Unit = {},
     onOpenMeasures: () -> Unit = {},
     onOpenMemory: () -> Unit = {},
@@ -94,7 +101,7 @@ fun CopilotSettingsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     CommittedField("Base URL", s.sttBaseUrl, onSttBaseUrl, uri = true)
                     CommittedField("Model", s.sttModel, onSttModel, uri = true)
-                    KeyField("API key", state.sttKeyMask, onSaveSttKey, onRemoveSttKey)
+                    KeyField("API key", state.sttKeyMask, onSaveSttKey, onRemoveSttKey, supporting = "Optional: with the same provider as the language model (OpenRouter) its key is used.")
                     CommittedField("Transcription language", s.sttLanguage, onSttLanguage, uri = true, supporting = "ISO 639-1 code, e.g. it, en.")
                 }
             }
@@ -135,6 +142,20 @@ fun CopilotSettingsScreen(
                     onClick = onOpenMemory, showDivider = false,
                 )
             }
+            LhSectionHeader("Debug log")
+            LhGroupCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        if (state.logBytes == 0L) "Empty. Every copilot turn is recorded here: prompts, tool calls, token usage, cache hits and cost."
+                        else "${(state.logBytes + 1023) / 1024} KB. Prompts, tool calls, token usage, cache hits and cost of recent turns, including the food diary the copilot saw. Stays on this phone and out of backups until you share it.",
+                        style = LhType.captionMuted,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LhButton("Share log", onShareLog, Modifier.testTag("copilot-log-share"), variant = LhButtonVariant.Tonal, size = LhButtonSize.Sm, enabled = state.logBytes > 0)
+                        LhButton("Clear log", onClearLog, Modifier.testTag("copilot-log-clear"), variant = LhButtonVariant.Outline, size = LhButtonSize.Sm, enabled = state.logBytes > 0)
+                    }
+                }
+            }
             Text("Food values for unpackaged foods: USDA FoodData Central (SR Legacy), public domain.", style = LhType.captionMuted, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
             Text("API keys are stored encrypted on this phone, excluded from backups and never included in data exports.", style = LhType.captionMuted, modifier = Modifier.padding(top = 16.dp, start = 4.dp))
             Spacer(Modifier.height(16.dp))
@@ -158,7 +179,7 @@ private fun CommittedField(label: String, value: String, onCommit: (String) -> U
 
 /** Masked key entry: typing a new key then "Save key" stores it encrypted; the stored key is shown only as "••••abcd". */
 @Composable
-private fun KeyField(label: String, mask: String?, onSave: (String) -> Unit, onRemove: () -> Unit) {
+private fun KeyField(label: String, mask: String?, onSave: (String) -> Unit, onRemove: () -> Unit, supporting: String? = null) {
     var text by remember(mask) { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         LhTextField(
@@ -166,6 +187,7 @@ private fun KeyField(label: String, mask: String?, onSave: (String) -> Unit, onR
             placeholder = if (mask != null) "Saved $mask. Paste a new key to replace." else "Paste your API key",
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             visualTransformation = PasswordVisualTransformation(),
+            supportingText = supporting,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LhButton("Save key", { onSave(text); text = "" }, size = LhButtonSize.Sm, enabled = text.isNotBlank())

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lifehub.app.copilot.debug.CopilotDebugLog
 import com.lifehub.app.copilot.llm.ConnectionTestResult
 import com.lifehub.app.copilot.llm.ConnectionTester
 import com.lifehub.app.copilot.secrets.SecretNames
@@ -30,12 +31,15 @@ data class CopilotUiState(
     val llmKeyMask: String? = null,
     val sttKeyMask: String? = null,
     val test: ConnectionTestState = ConnectionTestState.Idle,
+    /** Size of the debug log on this phone. */
+    val logBytes: Long = 0,
 )
 
 class CopilotSettingsViewModel(
     private val repo: CopilotSettingsRepository,
     private val secrets: SecretStore,
     private val tester: ConnectionTester,
+    private val debugLog: CopilotDebugLog? = null,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(snapshot(ConnectionTestState.Idle))
     val ui: StateFlow<CopilotUiState> = _ui
@@ -45,6 +49,7 @@ class CopilotSettingsViewModel(
         llmKeyMask = maskKey(secrets.get(SecretNames.LLM_API_KEY)),
         sttKeyMask = maskKey(secrets.get(SecretNames.STT_API_KEY)),
         test = test,
+        logBytes = debugLog?.sizeBytes() ?: 0,
     )
 
     private fun refresh(test: ConnectionTestState = _ui.value.test) { _ui.value = snapshot(test) }
@@ -58,12 +63,22 @@ class CopilotSettingsViewModel(
     fun setSttModel(v: String) = edited { if (v.isNotBlank()) repo.setSttModel(v) }
     fun setSttLanguage(v: String) = edited { if (v.isNotBlank()) repo.setSttLanguage(v) }
 
+    /** The debug log as one file at [target] (for the share sheet); false when empty. */
+    fun exportLog(target: java.io.File): Boolean = debugLog?.exportTo(target) == true
+    fun clearLog() { debugLog?.clear(); refresh() }
+
     fun setNotificationsEnabled(v: Boolean) { repo.setNotificationsEnabled(v); refresh() }
 
-    fun saveLlmKey(v: String) = edited { secrets.put(SecretNames.LLM_API_KEY, v.trim()) }
+    fun saveLlmKey(v: String) = saveKey(SecretNames.LLM_API_KEY, v)
     fun removeLlmKey() = edited { secrets.remove(SecretNames.LLM_API_KEY) }
-    fun saveSttKey(v: String) = edited { secrets.put(SecretNames.STT_API_KEY, v.trim()) }
+    fun saveSttKey(v: String) = saveKey(SecretNames.STT_API_KEY, v)
     fun removeSttKey() = edited { secrets.remove(SecretNames.STT_API_KEY) }
+
+    // A Keystore failure is reported under the connection test instead of crashing the screen.
+    private fun saveKey(name: String, v: String) {
+        val failure = runCatching { secrets.put(name, v.trim()) }.exceptionOrNull()
+        refresh(if (failure == null) ConnectionTestState.Idle else ConnectionTestState.Failed("Could not save the API key: ${failure.message ?: failure.javaClass.simpleName}"))
+    }
 
     fun testConnection() {
         if (_ui.value.test == ConnectionTestState.Running) return
@@ -82,6 +97,6 @@ class CopilotSettingsViewModel(
 
     companion object {
         fun factory(c: AppContainer): ViewModelProvider.Factory =
-            viewModelFactory { initializer { CopilotSettingsViewModel(c.copilotSettings, c.secrets, c.llmConnectionTester) } }
+            viewModelFactory { initializer { CopilotSettingsViewModel(c.copilotSettings, c.secrets, c.llmConnectionTester, c.copilotDebugLog) } }
     }
 }
