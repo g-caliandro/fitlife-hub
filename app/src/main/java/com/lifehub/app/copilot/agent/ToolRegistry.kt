@@ -59,6 +59,11 @@ interface CopilotTool {
      * See [ToolPolicy].
      */
     val chatOnly: Boolean get() = false
+    /**
+     * Not executed in a round where the model also asks the user a question: nothing of a request is written until
+     * everything in it is clear (all or nothing). Only the meal log; unrelated writes (a weight) still run.
+     */
+    val heldWhileAsking: Boolean get() = false
     /** Called only with arguments that passed [schema] validation. */
     suspend fun execute(args: ToolArgs, ctx: ToolContext): ToolOutcome
 }

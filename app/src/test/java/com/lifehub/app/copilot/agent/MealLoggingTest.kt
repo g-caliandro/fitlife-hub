@@ -200,7 +200,7 @@ class MealLoggingTest {
         val ctx = ToolContext(f.now, f.zone, thread, run.captureId)
         f.captures.move(run.captureId, CaptureStatus.PROCESSING, f.now)
         val sneaky = f.fullRegistry.execute(call("x", "log_meal", """{"items":[{"ref":"${option.ref}","grams":150}]}"""), ctx)
-        assertEquals("estimate_not_chosen", (sneaky.outcome as ToolOutcome.Ok).result["not_logged"].toString().let { Regex("\"reason\":\"(\\w+)\"").find(it)!!.groupValues[1] })
+        assertTrue("held while the question is open", (sneaky.outcome as ToolOutcome.Error).message.contains("unanswered"))
         assertTrue(entries().isEmpty())
         f.captures.move(run.captureId, CaptureStatus.AWAITING_INPUT, f.now)
 
@@ -225,11 +225,13 @@ class MealLoggingTest {
         assertEquals(EntrySource.HISTORY, again.food!!.source); assertEquals("food:${estimateFood.id}", again.food!!.ref)
     }
 
-    @Test fun resolvedItemsAreWrittenWhileAnotherStaysPendingAndTheAnswerJoinsTheSameMeal() = runBlocking {
+    @Test fun nothingIsWrittenWhileAnotherItemIsPendingAndTheAnswerLogsTheWholeMealOnce() = runBlocking {
+        var rice = ""
         val llm = StepLlmClient(
             { tools(call("c1", "resolve_food", """{"name":"riso basmati"}"""), call("c2", "resolve_food", """{"name":"polpette della nonna Pina"}""")) },
             { m ->
-                val rice = lastResults(m)[0]["food"]!!.jsonObject["ref"]!!.jsonPrimitive.content
+                rice = lastResults(m)[0]["food"]!!.jsonObject["ref"]!!.jsonPrimitive.content
+                // A model that logs the clear item and asks about the other in the same round: the log is held back.
                 tools(
                     call("c3", "log_meal", """{"items":[{"ref":"$rice","grams":90}],"datetime":"2026-11-16T13:30"}"""),
                     call("c4", "request_user_input", """{"kind":"use_estimate","prompt":"Uso una stima per le polpette?",
@@ -239,26 +241,31 @@ class MealLoggingTest {
         )
         val run = f.processor(llm).submitText(thread, "A pranzo 90 g di riso basmati e 100 g di polpette della nonna Pina")
         assertTrue(run.turn is TurnResult.AwaitingInput)
-        val rice = entries().single()
-        assertEquals(90.0, rice.grams, 0.0)
-        val mealAt = Instant.parse("2026-11-16T12:30:00Z")   // 13:30 Europe/Rome
-        assertEquals(mealAt, rice.loggedAt)
+        assertTrue("nothing written while a question is open", entries().isEmpty())
+        assertTrue(cards().none { it is MealLoggedCard })
+        val held = f.chat.messages(thread).first { it.toolCallId == "c3" }
+        assertTrue(held.text!!, held.text!!.contains("Not executed"))
         assertEquals(CaptureStatus.AWAITING_INPUT, f.captures.get(run.captureId)!!.status)
 
-        // Later (after 18:00) the user answers: the new entry joins the same meal (capture, date, time), even if the model
-        // passes another time.
+        // Later (after 18:00) the user answers: the model logs the WHOLE meal once, at the time of the original request.
         f.time.instant = Instant.parse("2026-11-16T17:00:00Z")
         val p = f.pending.byCapture(run.captureId).single()
         val ref = PendingCodec.options(p).single().ref!!
         val resume = StepLlmClient(
-            { tools(call("c5", "log_meal", """{"items":[{"ref":"$ref","grams":100}],"datetime":"2026-11-16T18:00"}""")) },
-            { text("Aggiunte le polpette al pranzo.") },
+            { m ->
+                val section = (m.first() as LlmMessage.System).content
+                assertTrue(section, section.contains("Richiesta originale") && section.contains("polpette della nonna Pina") && section.contains("niente è stato scritto"))
+                tools(call("c5", "log_meal", """{"items":[{"ref":"$rice","grams":90},{"ref":"$ref","grams":100}],"datetime":"2026-11-16T13:30"}"""))
+            },
+            { text("Registrato il pranzo.") },
         )
         f.processor(resume).answer(p.id, option = 0)
         val all = entries()
         assertEquals(2, all.size)
+        val mealAt = Instant.parse("2026-11-16T12:30:00Z")   // 13:30 Europe/Rome
         assertTrue(all.all { it.captureId == run.captureId && it.loggedAt == mealAt && it.date == f.today })
         assertEquals(CaptureStatus.DONE, f.captures.get(run.captureId)!!.status)
+        assertEquals(1, cards().filterIsInstance<MealLoggedCard>().size)
         // The user's answer is in the chat as a message of the same capture.
         assertEquals("Stima (stima)", f.chat.messages(thread).last { it.role == ChatRole.USER }.text)
     }

@@ -160,9 +160,14 @@ class AgentLoop(
             )
             turn += reply
             val suspended = mutableListOf<String>()
+            val asking = reply.toolCalls.any { registry[it.name]?.kind == ToolKind.INPUT_REQUEST }
             for (call in reply.toolCalls) {
                 val toolStart = System.nanoTime()
-                val exec = registry.execute(call, ctx.copy(now = time.now()), options.toolFilter)
+                val tool = registry[call.name]
+                val exec = if (asking && tool?.heldWhileAsking == true) ToolExecution(call, tool, ToolOutcome.Error(
+                    "Not executed: this round asks the user a question, so nothing is written until everything is clear. " +
+                        "Ask all open questions first; log the whole meal once, after the answers."))
+                else registry.execute(call, ctx.copy(now = time.now()), options.toolFilter)
                 debug?.record("tool") {
                     put("thread", threadId); put("capture", options.captureId); put("round", iterations); put("name", call.name)
                     put("arguments", CopilotDebugLog.clip(call.arguments)); put("result", CopilotDebugLog.clip(exec.content))

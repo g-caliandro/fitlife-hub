@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lifehub.app.copilot.agent.MealItemView
 import com.lifehub.app.copilot.agent.MealLoggedCard
@@ -36,6 +37,11 @@ import com.lifehub.app.copilot.agent.ProductCard
 import com.lifehub.app.copilot.capture.PendingCodec
 import com.lifehub.app.core.designsystem.LhTheme
 import com.lifehub.app.core.designsystem.LhType
+import com.lifehub.app.core.designsystem.MetricIcon
+import com.lifehub.app.core.designsystem.MetricKind
+import com.lifehub.app.core.designsystem.color
+import com.lifehub.app.core.designsystem.components.LhProgressBar
+import com.lifehub.app.feature.food.FoodThumb
 import com.lifehub.app.core.designsystem.components.LhBadge
 import com.lifehub.app.core.designsystem.components.LhBadgeVariant
 import com.lifehub.app.core.designsystem.components.LhButton
@@ -78,12 +84,21 @@ internal fun sourceLabel(wire: String): String = when (wire) {
     else -> wire
 }
 
-/** "Meal logged": per item grams, kcal, macros, source badge and portion used; total; day's remaining; Undo / Open in diary. */
+/**
+ * "Meal logged": one row per item (photo on the left; title, quantity and calories / protein / carbs / fat bars on the
+ * right, each as the item's share of the daily target), the meal total, the whole day after this meal and Undo / Open in diary.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MealLoggedCardView(card: MealLoggedCard, undone: Boolean, today: LocalDate, onUndo: (String) -> Unit, onOpenDiary: (LocalDate) -> Unit, modifier: Modifier = Modifier) {
     val c = LhTheme.colors
     val date = LocalDate.parse(card.date)
+    val day = card.day
+    // An item's bar is its share of the daily target (of the meal total when there is no target).
+    val scale = ItemScale(
+        day?.kcalTarget?.toDouble() ?: card.totalKcal, day?.proteinTargetG?.toDouble() ?: card.totalProteinG,
+        day?.carbsTargetG?.toDouble() ?: card.totalCarbsG, day?.fatTargetG?.toDouble() ?: card.totalFatG,
+    )
     LhCard(modifier.fillMaxWidth().testTag("card-meal-logged"), contentPadding = PaddingValues(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(if (undone) "Meal log undone" else "Meal logged", style = LhType.heading, color = if (undone) c.mutedForeground else c.foreground, modifier = Modifier.weight(1f))
@@ -92,15 +107,20 @@ fun MealLoggedCardView(card: MealLoggedCard, undone: Boolean, today: LocalDate, 
         Spacer(Modifier.height(8.dp))
         card.items.forEachIndexed { i, item ->
             if (i > 0) HorizontalDivider(color = c.border, thickness = 1.dp, modifier = Modifier.padding8())
-            MealItemRow(item, undone)
+            MealItemRow(item, scale, undone)
         }
         HorizontalDivider(color = c.border, thickness = 1.dp, modifier = Modifier.padding8())
         Row(Modifier.fillMaxWidth().testTag("meal-total"), verticalAlignment = Alignment.CenterVertically) {
-            Text("Total", style = LhType.label, color = c.foreground, modifier = Modifier.weight(1f))
+            Text("Meal total", style = LhType.label, color = c.foreground, modifier = Modifier.weight(1f))
             Text("${fmtInt(card.totalKcal.roundToInt())} kcal", style = LhType.label, color = c.foreground)
         }
         Text("P ${fmtMacro(card.totalProteinG)} · C ${fmtMacro(card.totalCarbsG)} · F ${fmtMacro(card.totalFatG)} g", style = LhType.captionMuted)
-        remainingText(card, today)?.let {
+        if (day != null) {
+            Spacer(Modifier.height(16.dp))
+            Text(dayLabel(date, today) + ", all meals", style = LhType.label, color = c.foreground)
+            Spacer(Modifier.height(8.dp))
+            DaySummaryBars(day, Modifier.testTag("meal-day"))
+        } else remainingText(card, today)?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = LhType.caption, color = c.mutedForeground, modifier = Modifier.testTag("meal-remaining"))
         }
@@ -116,6 +136,9 @@ fun MealLoggedCardView(card: MealLoggedCard, undone: Boolean, today: LocalDate, 
 
 private fun Modifier.padding8() = this.then(Modifier.padding(vertical = 8.dp))
 
+/** What a full item bar stands for, per metric. */
+private class ItemScale(val kcal: Double, val protein: Double, val carbs: Double, val fat: Double)
+
 private fun remainingText(card: MealLoggedCard, today: LocalDate): String? {
     val parts = listOfNotNull(
         card.kcalRemaining?.let { if (it >= 0) "${fmtInt(it)} kcal left" else "${fmtInt(-it)} kcal over" },
@@ -127,27 +150,46 @@ private fun remainingText(card: MealLoggedCard, today: LocalDate): String? {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MealItemRow(item: MealItemView, undone: Boolean) {
+private fun MealItemRow(item: MealItemView, scale: ItemScale, undone: Boolean) {
     val c = LhTheme.colors
     val fg = if (undone) c.mutedForeground else c.foreground
-    Column(Modifier.fillMaxWidth().testTag("meal-item")) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(item.name + (item.brand?.let { " · $it" } ?: ""), style = LhType.body, color = fg, modifier = Modifier.weight(1f))
-            Text("${fmtInt(item.kcal.roundToInt())} kcal", style = LhType.body, color = fg)
+    Row(Modifier.fillMaxWidth().testTag("meal-item"), verticalAlignment = Alignment.Top) {
+        FoodThumb(item.name, item.imageUrl, size = 56.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.name + (item.brand?.let { " · $it" } ?: ""), style = LhType.body, color = fg, maxLines = 2)
+            val portion = item.portionLabel?.let { label ->
+                val n = item.servings?.let(::fmtGrams) ?: "1"
+                " · $n × $label" + (item.portionGrams?.let { " (${fmtGrams(it)} g)" } ?: "")
+            }.orEmpty()
+            Text("${fmtGrams(item.grams)} g$portion", style = LhType.captionMuted)
+            Spacer(Modifier.height(6.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ItemBar(MetricKind.Calories, "${fmtInt(item.kcal.roundToInt())} kcal", item.kcal, scale.kcal, undone)
+                ItemBar(MetricKind.Protein, "${fmtMacro(item.proteinG)} g", item.proteinG, scale.protein, undone)
+                ItemBar(MetricKind.Carbs, "${fmtMacro(item.carbsG)} g", item.carbsG, scale.carbs, undone)
+                ItemBar(MetricKind.Fat, "${fmtMacro(item.fatG)} g", item.fatG, scale.fat, undone)
+            }
+            Spacer(Modifier.height(6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LhBadge(sourceLabel(item.source), variant = if (item.source == "llm_estimate") LhBadgeVariant.Warning else LhBadgeVariant.Secondary)
+                if (item.usedDefaultPortion) LhBadge("Default portion", variant = LhBadgeVariant.Outline)
+                if (item.incomplete) LhBadge("Incomplete values", variant = LhBadgeVariant.Warning)
+                if (item.stateMismatch) LhBadge("Raw values used", variant = LhBadgeVariant.Warning)
+            }
         }
-        val portion = item.portionLabel?.let { label ->
-            val n = item.servings?.let(::fmtGrams) ?: "1"
-            " · $n × $label" + (item.portionGrams?.let { " (${fmtGrams(it)} g)" } ?: "")
-        }.orEmpty()
-        Text("${fmtGrams(item.grams)} g$portion", style = LhType.captionMuted)
-        Text("P ${fmtMacro(item.proteinG)} · C ${fmtMacro(item.carbsG)} · F ${fmtMacro(item.fatG)} g", style = LhType.captionMuted)
-        Spacer(Modifier.height(4.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            LhBadge(sourceLabel(item.source), variant = if (item.source == "llm_estimate") LhBadgeVariant.Warning else LhBadgeVariant.Secondary)
-            if (item.usedDefaultPortion) LhBadge("Default portion", variant = LhBadgeVariant.Outline)
-            if (item.incomplete) LhBadge("Incomplete values", variant = LhBadgeVariant.Warning)
-            if (item.stateMismatch) LhBadge("Raw values used", variant = LhBadgeVariant.Warning)
-        }
+    }
+}
+
+@Composable
+private fun ItemBar(metric: MetricKind, value: String, amount: Double, full: Double, undone: Boolean) {
+    val color = if (undone) LhTheme.colors.mutedForeground else metric.color()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        MetricIcon(metric, 14.dp, tint = color)
+        Spacer(Modifier.width(6.dp))
+        LhProgressBar(if (full > 0) (amount / full).toFloat() else 0f, Modifier.weight(1f), color = color, height = 6.dp)
+        Spacer(Modifier.width(8.dp))
+        Text(value, style = LhType.tnum(LhType.caption), color = LhTheme.colors.mutedForeground, modifier = Modifier.width(68.dp), textAlign = TextAlign.End, maxLines = 1)
     }
 }
 

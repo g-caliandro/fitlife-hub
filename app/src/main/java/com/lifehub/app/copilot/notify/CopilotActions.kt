@@ -28,8 +28,9 @@ class CopilotActions(
         return true
     }
 
+    /** Discards the request; when it was the last open one, the capture resumes (queued) and logs the rest of the meal. */
     suspend fun discard(pendingId: String): Boolean = try {
-        processor.discard(pendingId); true
+        processor.recordDiscard(pendingId)?.let { scheduler.enqueue(it) }; true
     } catch (_: IllegalTransitionException) { events?.pendingClosed(pendingId); false }
 
     suspend fun undo(captureId: String): UndoResult = processor.undo(captureId).also { events?.cancelCapture(captureId) }

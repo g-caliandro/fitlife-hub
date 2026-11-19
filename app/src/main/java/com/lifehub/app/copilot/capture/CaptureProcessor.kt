@@ -101,6 +101,22 @@ class CaptureProcessor(
         }
     }
 
+    /**
+     * The fast half of "discard and carry on" (DB only): discards [pendingId]; when it was the last open request of an
+     * AWAITING_INPUT capture, the capture moves to PROCESSING and its id is returned, to resume it (now with [process], or
+     * later by the CaptureWorker): nothing of the meal was written yet, so the turn logs everything but the dropped item.
+     */
+    suspend fun recordDiscard(pendingId: String): String? {
+        val p = pending.discard(pendingId, time.now())
+        events.pendingClosed(pendingId)
+        val c = captures.get(p.captureId) ?: return null
+        if (c.status != CaptureStatus.AWAITING_INPUT || pending.byCapture(c.id).any { it.status == PendingStatus.OPEN }) return null
+        captures.move(c.id, CaptureStatus.PROCESSING, time.now())
+        return c.id
+    }
+
+    suspend fun discardAndResume(pendingId: String): CaptureRun? = recordDiscard(pendingId)?.let { process(it) }
+
     /** Deletes the capture's audio file (if any) and forgets its path; the transcript stays. */
     private suspend fun releaseAudio(captureId: String) {
         val path = captures.get(captureId)?.audioPath ?: return
@@ -161,7 +177,12 @@ class CaptureProcessor(
         val open = all.count { it.status == PendingStatus.OPEN }
         val discarded = all.filter { it.status == PendingStatus.DISCARDED }
         return buildString {
-            append("Questa richiesta riprende dopo una risposta dell'utente. Registra gli item risposti con log_meal: si aggiungono allo stesso pasto (stessa data e ora). Non registrare di nuovo gli item già registrati.")
+            val original = captures.get(captureId)?.inputText?.takeIf { it.isNotBlank() }
+            append("Questa richiesta riprende dopo una risposta dell'utente.")
+            original?.let { append(" Richiesta originale: \"$it\".") }
+            append(" Un pasto si registra una volta sola, quando tutto è chiaro: finora niente è stato scritto. ")
+            append("Quando nessuna domanda è più aperta chiama UN solo log_meal con TUTTI gli alimenti della richiesta originale (non solo quelli risposti): risolvi con resolve_food quelli non elencati qui sotto. ")
+            append("Se log_meal risponde already_logged, quegli alimenti erano già nel diario: non ripeterli.")
             answered.forEach { p ->
                 val a = PendingCodec.answer(p)
                 val o = a?.option?.let { PendingCodec.options(p).getOrNull(it) }
@@ -174,8 +195,8 @@ class CaptureProcessor(
                 }
                 if (p.kind == PendingKind.PACKAGE_WEIGHT) append("; il peso della confezione è stato salvato sul prodotto ${p.foodRef}: usa servings con portion 'package'.")
             }
-            discarded.forEach { append("\n- Scartata: \"${it.prompt}\": non registrare quell'item.") }
-            if (open > 0) append("\nRichieste ancora aperte: $open. Non ripeterle.")
+            discarded.forEach { append("\n- Scartata: \"${it.prompt}\": non registrare quell'item (se tutti gli alimenti sono scartati non registrare niente).") }
+            if (open > 0) append("\nRichieste ancora aperte: $open. Non ripeterle e non registrare niente finché restano aperte.")
         }
     }
 

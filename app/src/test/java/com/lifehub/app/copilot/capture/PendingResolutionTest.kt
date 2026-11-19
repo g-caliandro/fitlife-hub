@@ -42,16 +42,18 @@ class PendingResolutionTest {
     private lateinit var v: VoiceFixture
     private lateinit var cap: Capture
     private lateinit var request: PendingInput
+    private var riceRef = ""
 
     @Before fun setUp() = runBlocking {
         f.baseFoods.ensureSeeded()
-        // "90 g di riso basmati e 100 g di polpette della nonna Pina": rice logged at once, the meatballs need an answer.
+        // "90 g di riso basmati e 100 g di polpette della nonna Pina": the meatballs need an answer, so NOTHING is written yet
+        // (all or nothing); this model also tries log_meal in the same round and the app holds it back.
         llm = StepLlmClient(
             { tools(call("c1", "resolve_food", """{"name":"riso basmati"}""")) },
             { m ->
-                val rice = Json.parseToJsonElement((m.last() as LlmMessage.Tool).content).jsonObject["food"]!!.jsonObject["ref"]!!.jsonPrimitive.content
+                riceRef = Json.parseToJsonElement((m.last() as LlmMessage.Tool).content).jsonObject["food"]!!.jsonObject["ref"]!!.jsonPrimitive.content
                 tools(
-                    call("c2", "log_meal", """{"items":[{"ref":"$rice","grams":90}]}"""),
+                    call("c2", "log_meal", """{"items":[{"ref":"$riceRef","grams":90}]}"""),
                     call("c3", "request_user_input", """{"kind":"use_estimate","prompt":"Non trovo le polpette della nonna Pina. Uso una stima?",
                         "options":[{"label":"Polpette (stima)","estimate":{"kcal_100g":220,"protein_100g":14,"carbs_100g":8,"fat_100g":15}}],
                         "item":{"name":"polpette della nonna Pina","grams":100}}"""),
@@ -73,9 +75,9 @@ class PendingResolutionTest {
 
     @Test fun waitingCaptureShowsOutcomeAndOneQuestion() = runBlocking {
         assertEquals(CaptureStatus.AWAITING_INPUT, f.captures.get(cap.id)!!.status)
-        assertEquals(1, entries().size)
+        assertTrue("nothing is written while a question is open", entries().isEmpty())
         val shown = v.sink.visible.values.toList()
-        assertEquals(listOf(CopilotChannel.OUTCOME, CopilotChannel.NEEDS_ANSWER), shown.map { it.channel })
+        assertEquals(listOf(CopilotChannel.NEEDS_ANSWER), shown.map { it.channel })
         val q = shown.last()
         assertEquals(listOf(ActionKind.CHOOSE, ActionKind.REPLY), q.actions.map { it.kind })
         assertNotNull(f.pending.get(request.id)!!.notifiedAt)
@@ -85,7 +87,6 @@ class PendingResolutionTest {
     }
 
     @Test fun answeredFromTheNotificationClosesItInInboxAndChatAndJoinsTheSameMeal() = runBlocking {
-        val rice = entries().single()
         // Notification "Polpette (stima)" action, app closed: DB-only change, the turn is queued for the worker.
         assertTrue(v.actions.answer(request.id, option = 0))
         assertEquals(PendingStatus.ANSWERED, status())
@@ -101,12 +102,12 @@ class PendingResolutionTest {
 
         // The worker resumes the saved capture: the estimate joins the same meal (capture, date and time).
         val ref = PendingCodec.options(f.pending.get(request.id)!!).single().ref!!
-        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$ref","grams":100}]}""")) }
-        llm.add { text("Aggiunte le polpette.") }
+        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$riceRef","grams":90},{"ref":"$ref","grams":100}]}""")) }
+        llm.add { text("Registrato il pranzo.") }
         assertEquals(CaptureStatus.DONE, v.drainWorker().single().status)
         val all = entries()
         assertEquals(2, all.size)
-        assertTrue(all.all { it.loggedAt == rice.loggedAt && it.date == rice.date })
+        assertEquals("one meal: same date and time", 1, all.map { it.loggedAt to it.date }.distinct().size)
         val outcome = v.sink.visible.values.single()
         assertEquals(CopilotChannel.OUTCOME, outcome.channel)
         assertTrue(outcome.title, outcome.title.startsWith("Logged 2 items"))
@@ -121,7 +122,8 @@ class PendingResolutionTest {
         // The notification's Choose arrives afterwards: refused, nothing queued twice.
         assertFalse(v.actions.answer(request.id, option = 0))
         assertEquals(1, v.enqueued.size)
-        llm.add { text("Ok, niente polpette.") }
+        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$riceRef","grams":90}]}""")) }
+        llm.add { text("Registrato solo il riso.") }
         v.drainWorker()
         assertEquals(CaptureStatus.DONE, f.captures.get(cap.id)!!.status)
         assertEquals(1, entries().size)
@@ -130,7 +132,7 @@ class PendingResolutionTest {
     @Test fun answeredInTheChatClosesItInInboxAndNotification() = runBlocking {
         // Chat card "Choose" (ChatViewModel.answer -> CaptureProcessor.answer): resumes in place.
         val ref = PendingCodec.options(request).single().ref!!
-        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$ref","grams":100}]}""")) }
+        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$riceRef","grams":90},{"ref":"$ref","grams":100}]}""")) }
         llm.add { text("Fatto.") }
         v.processor.answer(request.id, option = 0)
         assertEquals(PendingStatus.ANSWERED, status())
@@ -145,8 +147,14 @@ class PendingResolutionTest {
         assertTrue(v.actions.discard(request.id))
         assertEquals(PendingStatus.DISCARDED, status())
         assertFalse(pendingTag in v.sink.visible)
-        assertEquals(CaptureStatus.DONE, f.captures.get(cap.id)!!.status)
-        assertEquals("rice stays logged", 1, entries().size)
+        // Dropping the last open question resumes the capture: the rest of the meal is logged now (nothing was before).
+        assertEquals(CaptureStatus.PROCESSING, f.captures.get(cap.id)!!.status)
+        assertEquals(listOf(cap.id), v.enqueued)
+        assertTrue(entries().isEmpty())
+        llm.add { tools(call("c4", "log_meal", """{"items":[{"ref":"$riceRef","grams":90}]}""")) }
+        llm.add { text("Registrato il riso.") }
+        assertEquals(CaptureStatus.DONE, v.drainWorker().single().status)
+        assertEquals("rice logged after the dropped item", 1, entries().size)
         assertFalse(v.actions.discard("unknown"))
     }
 

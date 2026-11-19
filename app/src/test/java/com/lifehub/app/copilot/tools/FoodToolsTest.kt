@@ -91,6 +91,14 @@ class FoodToolsTest {
         noEntries()
     }
 
+    @Test fun oneUnresolvableItemHoldsTheWholeMeal() {
+        val r = ok("log_meal", """{"items":[{"ref":"base:sr-169756","grams":90},{"ref":"base:nope","grams":10}]}""")
+        assertEquals(0, r["logged"]!!.jsonArray.size)
+        assertEquals(1, r["not_logged"]!!.jsonArray.size)
+        assertTrue(r["note"]!!.jsonPrimitive.content.contains("NOTHING was written"))
+        noEntries()
+    }
+
     @Test fun resolveFoodValidatesArguments() {
         assertTrue(error("resolve_food", """{"name":""}""").contains("must not be empty"))
         assertTrue(error("resolve_food", """{"name":"riso","state":"fried"}""").contains("must be one of raw, cooked"))

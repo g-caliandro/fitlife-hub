@@ -74,7 +74,7 @@ object FoodTools {
     ): List<CopilotTool> = listOfNotNull(
         ResolveFoodTool(resolver, catalog),
         barcodes?.let { GetProductByBarcodeTool(it, catalog, offCache) },
-        LogMealTool(lookup, catalog, writer, captures, food, settings),
+        LogMealTool(lookup, catalog, writer, captures, pending, food, settings),
         RequestUserInputTool(lookup, captures, pending),
     )
 }
@@ -267,15 +267,17 @@ class LogMealTool(
     private val catalog: FoodCatalog,
     private val writer: FoodLogWriter,
     private val captures: CaptureStore,
+    private val pending: PendingInputStore,
     private val food: FoodRepository,
     private val settings: () -> Settings,
 ) : CopilotTool {
     override val name = "log_meal"
-    override val description = "Writes the meal to the food diary immediately (the user can undo it). One item per food, " +
-        "with the ref from resolve_food and the amount: grams, or servings (+ portion), or a household measure (+ count), or " +
-        "nothing for one default portion. The app computes grams, kcal and macros: never pass them. Items it cannot write " +
-        "come back in 'not_logged'. Items added later for the same request join the same meal automatically."
+    override val description = "Writes the WHOLE meal to the food diary in one call, only when everything the user said is clear " +
+        "(the user can undo it). One item per food, with the ref from resolve_food and the amount: grams, or servings (+ portion), " +
+        "or a household measure (+ count), or nothing for one default portion. The app computes grams, kcal and macros: never pass " +
+        "them. All or nothing: if any item cannot be written, nothing is written and the problems come back in 'not_logged'."
     override val kind = ToolKind.WRITE
+    override val heldWhileAsking = true
     override val schema = ToolSchema(listOf(
         Param("items", ParamType.Arr(ParamType.Obj(listOf(
             Param("ref", ParamType.Str("The ref returned by resolve_food.", minLength = 1, maxLength = 160)),
@@ -289,6 +291,8 @@ class LogMealTool(
         val capture = captures.get(captureId) ?: return ToolOutcome.Error("log_meal is not available in this conversation.")
         if (capture.status == CaptureStatus.CANCELLED) return ToolOutcome.Error("The user undid this meal log. Do not log it again; the user can ask again if they want.")
         if (!CaptureStateMachine.acceptsWrites(capture.status)) return ToolOutcome.Error("This request cannot write right now.")
+        if (pending.byCapture(captureId).any { it.status == PendingStatus.OPEN })
+            return ToolOutcome.Error("Questions to the user are still unanswered: nothing is written until everything is clear. Do not call log_meal now.")
 
         val requested = args.string("datetime")?.let { s ->
             try { LocalDateTime.parse(s.trim().take(16)).atZone(ctx.zone).toInstant() } catch (_: DateTimeParseException) {
@@ -332,7 +336,8 @@ class LogMealTool(
             }
         }
 
-        val results = if (toWrite.isEmpty()) emptyList() else writer.log(captureId, date, mealAt, toWrite, ctx.now)
+        // All or nothing: one item that cannot be written (unknown, missing quantity, estimate not chosen) holds the whole meal.
+        val results = if (toWrite.isEmpty() || notLogged.isNotEmpty()) emptyList() else writer.log(captureId, date, mealAt, toWrite, ctx.now)
         val logged = results.filterIsInstance<LogResult.Logged>()
         val day = food.observeNutrition(date, date).first().firstOrNull()
         val summary = dailySummary(date, day, settings())
@@ -358,10 +363,11 @@ class LogMealTool(
                 putOrNull("carbs_g", summary.carbsRemainingG); putOrNull("fat_g", summary.fatRemainingG)
             }
             put("note", buildString {
-                append("Already in the diary; the card shows the details. Reply in one short sentence.")
+                if (notLogged.isNotEmpty()) append("NOTHING was written (all or nothing): the meal is held until every item is clear.")
+                else append("Already in the diary; the card shows the details. Reply in one short sentence.")
                 if (again > 0) append(" 'already_logged' items were written earlier for this same request: do not log them again.")
                 if (keptEarlierTime) append(" The meal keeps the date and time of the first log of this request.")
-                if (notLogged.isNotEmpty()) append(" For each not_logged item with 'ask_with', call request_user_input with that kind.")
+                if (notLogged.isNotEmpty()) append(" For each not_logged item with 'ask_with', call request_user_input with that kind, all in the same round, without log_meal; fix the others (unknown ref: resolve_food again) and log the whole meal once.")
             })
         }
         val card = if (logged.isEmpty()) null else MealLoggedCard(
@@ -369,12 +375,12 @@ class LogMealTool(
             items = logged.map { l ->
                 val e = l.entry
                 MealItemView(e.id, e.name, e.brand, e.grams, e.kcal, e.proteinG, e.carbsG, e.fatG, l.item.food.source.wire,
-                    e.portionLabel, e.servings, e.portionGrams, l.item.quantity.usedDefaultPortion, l.item.food.incomplete, l.item.food.stateMismatch)
+                    e.portionLabel, e.servings, e.portionGrams, l.item.quantity.usedDefaultPortion, l.item.food.incomplete, l.item.food.stateMismatch, e.imageUrl)
             },
             totalKcal = logged.sumOf { it.entry.kcal }, totalProteinG = logged.sumOf { it.entry.proteinG },
             totalCarbsG = logged.sumOf { it.entry.carbsG }, totalFatG = logged.sumOf { it.entry.fatG },
             kcalRemaining = summary.kcalRemaining, proteinRemainingG = summary.proteinRemainingG,
-            carbsRemainingG = summary.carbsRemainingG, fatRemainingG = summary.fatRemainingG,
+            carbsRemainingG = summary.carbsRemainingG, fatRemainingG = summary.fatRemainingG, day = summary,
         )
         return ToolOutcome.Ok(result, card)
     }
@@ -395,7 +401,7 @@ class RequestUserInputTool(
     override val description = "Saves a question for the user and ends your turn; the user answers later (chat, inbox or " +
         "notification) and you continue then. Use it for: choose_food (several candidates), use_estimate (food not found: " +
         "offer your estimate per 100 g, it is shown as an estimate), quantity (amount missing), package_weight (package " +
-        "weight unknown; pass food_ref). Log the other items with log_meal BEFORE calling this."
+        "weight unknown; pass food_ref). Ask every open question of the meal in the same round and do NOT call log_meal: nothing is written until all are answered."
     override val kind = ToolKind.INPUT_REQUEST
     override val schema = ToolSchema(listOf(
         Param("kind", ParamType.Str("Type of question.", enum = listOf("choose_food", "use_estimate", "quantity", "package_weight"))),

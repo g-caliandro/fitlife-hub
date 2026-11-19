@@ -311,8 +311,16 @@ class ChatViewModel(
         }
     }
 
+    /** "Discard" on a request card: drops that item; when it was the last open question the rest of the meal is logged. */
     fun discard(pendingId: String) {
-        viewModelScope.launch { try { processor.discard(pendingId) } catch (_: IllegalTransitionException) {} }
+        if (working.value || !hasKey()) {
+            viewModelScope.launch { try { processor.discard(pendingId) } catch (_: IllegalTransitionException) {} }
+            return
+        }
+        turn {
+            try { processor.discardAndResume(pendingId)?.turn ?: TurnResult.Answered("") }
+            catch (_: IllegalTransitionException) { TurnResult.Answered("") }  // answered/discarded meanwhile
+        }
     }
 
     /** Undo on a "Meal logged" card: removes exactly what that capture wrote. */

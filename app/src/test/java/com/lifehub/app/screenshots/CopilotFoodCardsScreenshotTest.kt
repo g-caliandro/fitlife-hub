@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.lifehub.app.copilot.agent.DailySummaryCard
 import com.lifehub.app.copilot.agent.MealItemView
 import com.lifehub.app.copilot.agent.MealLoggedCard
 import com.lifehub.app.copilot.agent.PendingInputCard
@@ -90,6 +91,34 @@ class CopilotFoodCardsScreenshotTest {
         rule.onNodeWithTag("card-undo").assertIsNotEnabled()
         rule.onNodeWithText("Chosen: Polpette al sugo (estimate)").assertIsDisplayed()
         rule.onRoot().captureRoboImage("build/screens/copilot-food-cards-dark.png")
+    }
+
+    private val lunch = MealLoggedCard(
+        captureId = "c2", date = "2026-11-16", time = "13:05",
+        items = listOf(
+            MealItemView("e1", "Riso basmati", null, 90.0, 328.5, 6.4, 72.0, 0.6, "base_table"),
+            MealItemView("e2", "Olio d'oliva", null, 9.0, 79.6, 0.0, 0.0, 9.0, "base_table", portionLabel = "cucchiaio", servings = 1.0, portionGrams = 9.0),
+            MealItemView("e3", "Scamorza affumicata", "Galbani", 40.0, 130.0, 10.0, 1.0, 10.0, "open_food_facts", portionLabel = "ciliegina", servings = 2.0, portionGrams = 20.0),
+        ),
+        totalKcal = 538.1, totalProteinG = 16.4, totalCarbsG = 73.0, totalFatG = 19.6,
+    )
+    private fun day(kcal: Int) = DailySummaryCard(
+        "2026-11-16", kcal, 85, 190, 52, kcalTarget = 2200, proteinTargetG = 150, carbsTargetG = 250, fatTargetG = 70,
+        kcalRemaining = 2200 - kcal, proteinRemainingG = 65, carbsRemainingG = 60, fatRemainingG = 18,
+    )
+    private fun mealState(card: MealLoggedCard) = ChatUiState(today, listOf(ChatItem.User("u1", "A pranzo riso, olio e 2 ciliegine di scamorza"), ChatItem.Card("t1", card)))
+
+    @Test fun mealCardWithDayBarsDark() {
+        rule.setContent { LhTheme(darkTheme = true) { ChatScreen(mealState(lunch.copy(day = day(1480))), onBack = {}) } }
+        rule.onNodeWithText("Meal logged").assertIsDisplayed()
+        rule.onNodeWithText("Today, all meals").assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/screens/copilot-meal-card-dark.png")
+    }
+
+    @Test fun mealCardOverTheCalorieTargetDark() {
+        rule.setContent { LhTheme(darkTheme = true) { ChatScreen(mealState(lunch.copy(day = day(2310))), onBack = {}) } }
+        rule.onNodeWithText("110 kcal over").assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/screens/copilot-meal-card-over-dark.png")
     }
 
     @Test fun householdMeasuresLight() {

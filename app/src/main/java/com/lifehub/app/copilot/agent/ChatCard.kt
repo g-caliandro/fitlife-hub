@@ -62,6 +62,8 @@ data class MealItemView(
     val usedDefaultPortion: Boolean = false,
     val incomplete: Boolean = false,
     val stateMismatch: Boolean = false,
+    /** Product photo (Open Food Facts), when the food has one. */
+    val imageUrl: String? = null,
 )
 
 /**
@@ -82,6 +84,8 @@ data class MealLoggedCard(
     val proteinRemainingG: Int? = null,
     val carbsRemainingG: Int? = null,
     val fatRemainingG: Int? = null,
+    /** The whole day after this meal (all meals, targets): the card's day bars. Null on cards saved before it existed. */
+    val day: DailySummaryCard? = null,
 ) : ChatCard
 
 @Serializable

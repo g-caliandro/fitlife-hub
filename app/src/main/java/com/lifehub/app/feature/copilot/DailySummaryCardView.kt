@@ -49,22 +49,28 @@ fun DailySummaryCardView(card: DailySummaryCard, today: LocalDate, onOpenDiary: 
             Text(dayLabel, style = LhType.captionMuted)
         }
         Spacer(Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val kt = card.kcalTarget
-            LhMetricBar(
-                MetricKind.Calories,
-                if (kt != null) "${fmtInt(card.kcal)} / ${fmtInt(kt)} kcal" else "${fmtInt(card.kcal)} kcal",
-                if (kt != null) card.kcal / kt.toFloat() else 0f,
-                color = if (kt != null && card.kcal > kt) c.warning else MetricKind.Calories.color(),
-                caption = leftCaption(card.kcalRemaining, kt, "kcal", known = true, complete = true),
-            )
-            MacroBar(MetricKind.Protein, card.proteinG, card.proteinTargetG, card.proteinRemainingG, card.proteinKnown, card.proteinComplete)
-            MacroBar(MetricKind.Carbs, card.carbsG, card.carbsTargetG, card.carbsRemainingG, card.carbsKnown, card.carbsComplete)
-            MacroBar(MetricKind.Fat, card.fatG, card.fatTargetG, card.fatRemainingG, card.fatKnown, card.fatComplete)
-        }
+        DaySummaryBars(card)
         Spacer(Modifier.height(12.dp))
         LhButton("Open in diary", { onOpenDiary(date) }, Modifier.testTag("card-open-diary"),
             variant = LhButtonVariant.Outline, size = LhButtonSize.Sm, leadingIcon = Icons.Outlined.Book)
+    }
+}
+
+/** The day's calories and macros against the targets; the calories bar turns from green to red once the target is exceeded. */
+@Composable
+internal fun DaySummaryBars(card: DailySummaryCard, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val kt = card.kcalTarget
+        LhMetricBar(
+            MetricKind.Calories,
+            if (kt != null) "${fmtInt(card.kcal)} / ${fmtInt(kt)} kcal" else "${fmtInt(card.kcal)} kcal",
+            if (kt != null) card.kcal / kt.toFloat() else 0f,
+            color = if (kt != null && card.kcal > kt) LhTheme.colors.destructive else MetricKind.Calories.color(),
+            caption = leftCaption(card.kcalRemaining, kt, "kcal", known = true, complete = true),
+        )
+        MacroBar(MetricKind.Protein, card.proteinG, card.proteinTargetG, card.proteinRemainingG, card.proteinKnown, card.proteinComplete)
+        MacroBar(MetricKind.Carbs, card.carbsG, card.carbsTargetG, card.carbsRemainingG, card.carbsKnown, card.carbsComplete)
+        MacroBar(MetricKind.Fat, card.fatG, card.fatTargetG, card.fatRemainingG, card.fatKnown, card.fatComplete)
     }
 }
 
