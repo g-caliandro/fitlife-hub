@@ -50,9 +50,9 @@ All screenshots are rendered in dark theme by the Roborazzi screenshot tests, us
 |:---:|:---:|:---:|:---:|:---:|
 | <img src="docs/screenshots/home.png" width="180" alt="Home"> | <img src="docs/screenshots/workout-live.png" width="180" alt="Live workout"> | <img src="docs/screenshots/train-plans.png" width="180" alt="Train"> | <img src="docs/screenshots/diary.png" width="180" alt="Diary"> | <img src="docs/screenshots/trends.png" width="180" alt="Trends"> |
 
-| Achievements | Copilot: meal logged | Copilot: inbox | Copilot: meal suggestion | Copilot: plan draft |
-|:---:|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/achievements.png" width="180" alt="Achievements"> | <img src="docs/screenshots/copilot-meal-logged.png" width="180" alt="Copilot meal logged"> | <img src="docs/screenshots/copilot-inbox.png" width="180" alt="Copilot inbox"> | <img src="docs/screenshots/copilot-meal-suggestion.png" width="180" alt="Copilot meal suggestion"> | <img src="docs/screenshots/copilot-plan-draft.png" width="180" alt="Copilot plan draft"> |
+| Achievements | Copilot: chat | Copilot: meal logged | Copilot: inbox | Copilot: meal suggestion | Copilot: plan draft |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/achievements.png" width="180" alt="Achievements"> | <img src="docs/screenshots/copilot-chat.png" width="180" alt="Copilot chat"> | <img src="docs/screenshots/copilot-meal-logged.png" width="180" alt="Copilot meal logged"> | <img src="docs/screenshots/copilot-inbox.png" width="180" alt="Copilot inbox"> | <img src="docs/screenshots/copilot-meal-suggestion.png" width="180" alt="Copilot meal suggestion"> | <img src="docs/screenshots/copilot-plan-draft.png" width="180" alt="Copilot plan draft"> |
 
 ## Tech stack and architecture
 
@@ -75,7 +75,7 @@ Requirements: JDK 17 and the Android SDK (API 35).
 ./gradlew :app:recordRoborazziDebug --offline -q  # screenshots in app/build/screens/
 ```
 
-Install the debug APK on a device with `adb install -r app/build/outputs/apk/debug/<apk>`. `install.sh` does the same from WSL2 through Windows `adb.exe` (the path inside it is machine-specific).
+Install the debug APK on a device with `adb install -r app/build/outputs/apk/debug/<apk>`. `install.sh` does the same from WSL2 through Windows `adb.exe` (set `ADB=/path/to/adb.exe` if yours is not in the default Android SDK location).
 
 The app has no onboarding. To explore it without entering data, use **You → Data → Generate mock data**.
 
@@ -127,4 +127,8 @@ The app has no onboarding. To explore it without entering data, use **You → Da
 - [`docs/copilot/progress.md`](docs/copilot/progress.md): Copilot build log, phase by phase
 - [`docs/copilot/phase0-research.md`](docs/copilot/phase0-research.md): provider and data source research
 
-The package id remains `com.lifehub.app`, and the in-app name still shows "Life Hub".
+The Android package id is still `com.lifehub.app`.
+
+## License
+
+Public domain, released under [The Unlicense](LICENSE). Do whatever you want with it.

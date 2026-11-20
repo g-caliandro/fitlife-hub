@@ -31,7 +31,7 @@ fun AboutRoute(onBack: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             LhIconSquare(Icons.Outlined.Info, size = 72.dp, iconSize = 36.dp)
             Spacer(Modifier.height(12.dp))
-            Text("Life Hub", style = LhType.title, color = c.foreground)
+            Text("FitLife Hub", style = LhType.title, color = c.foreground)
             val ctx = androidx.compose.ui.platform.LocalContext.current
             val ver = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "0.3" }
             Text("Version $ver", style = LhType.captionMuted)

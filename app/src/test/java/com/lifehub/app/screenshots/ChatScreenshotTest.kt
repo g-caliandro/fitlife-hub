@@ -54,6 +54,12 @@ class ChatScreenshotTest {
         assertEquals(today, opened)
     }
 
+    @Test fun chatWithSummaryCardDark() {
+        rule.setContent { LhTheme(darkTheme = true) { ChatScreen(conversation, onBack = {}) } }
+        rule.onNodeWithText("99 g left").assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/screens/copilot-chat-dark.png")
+    }
+
     @Test fun chatWorkingAndNetworkErrorDark() {
         rule.setContent { LhTheme(darkTheme = true) {
             ChatScreen(conversation.copy(problem = ChatProblem.Failed("Couldn't reach the LLM server. Check your connection and the base URL.", retryable = true, network = true)), onBack = {})

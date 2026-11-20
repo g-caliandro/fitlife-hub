@@ -208,7 +208,7 @@ fun SettingsScreen(
 
             if (all) {
                 LhSectionHeader("About")
-                Text("Life Hub ${state.appVersion} · data schema v${com.lifehub.app.export.JsonCodec.SCHEMA_VERSION}", style = LhType.captionMuted, modifier = Modifier.padding(vertical = LhSpacing.sm))
+                Text("FitLife Hub ${state.appVersion} · data schema v${com.lifehub.app.export.JsonCodec.SCHEMA_VERSION}", style = LhType.captionMuted, modifier = Modifier.padding(vertical = LhSpacing.sm))
             }
         }
     }

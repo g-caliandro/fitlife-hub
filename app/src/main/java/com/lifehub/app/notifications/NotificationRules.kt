@@ -34,7 +34,7 @@ data class RuleInput(
 data class PendingNotification(val type: NotifType, val title: String, val text: String, val route: String, val key: String? = null)
 
 object NotificationRules {
-    private const val TITLE = "Life Hub"
+    private const val TITLE = "FitLife Hub"
 
     fun evaluate(i: RuleInput): List<PendingNotification> = buildList {
         fun capped(t: NotifType) = i.lastNotified[t] == i.today

@@ -1,5 +1,5 @@
 <resources>
-    <string name="home_title">Life Hub</string>
+    <string name="home_title">FitLife Hub</string>
     <string name="home_profile">Profile</string>
     <string name="home_start_workout">Start workout</string>
     <string name="home_resume_workout">Resume workout</string>

@@ -152,7 +152,7 @@ fun ScanScreen(
                 is ScanUi.NeedsPermission -> LhEmptyState(
                     "Camera access needed",
                     description = if (ui.deniedBefore) "Without the camera we can't read barcodes. You can still search by name or create a custom food."
-                    else "Life Hub uses the camera only to read product barcodes. Nothing is recorded or stored.",
+                    else "FitLife Hub uses the camera only to read product barcodes. Nothing is recorded or stored.",
                     icon = Icons.Outlined.CameraAlt, actionText = "Allow camera", onAction = onRequestPermission,
                 )
                 ScanUi.PermanentlyDenied -> LhEmptyState(
