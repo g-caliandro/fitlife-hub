@@ -48,8 +48,8 @@ val LightLhColors = LhColors(
     pull = Color(0xFF3F7CC8), push = Color(0xFFE07A2A), legs = Color(0xFF7D8F22), core = Color(0xFF8A63D2),
     isDark = false,
     primaryContainer = Color(0xFFE6F2E3), onPrimaryContainer = Color(0xFF2E7D32),
-    track = Color(0xFFEEEAE2), kcal = Color(0xFF43A047), protein = Color(0xFF1F8A80),
-    carbs = Color(0xFFD9661F), fat = Color(0xFFDBA200),
+    track = Color(0xFFEEEAE2), kcal = Color(0xFFE53935), protein = Color(0xFF1F8A80),
+    carbs = Color(0xFFDBA200), fat = Color(0xFFD9661F),
     scrim = Color(0x52000000),
 )
 
@@ -66,8 +66,8 @@ val DarkLhColors = LhColors(
     pull = Color(0xFF74A7E6), push = Color(0xFFF2A15E), legs = Color(0xFFB4C658), core = Color(0xFFB39AF0),
     isDark = true,
     primaryContainer = Color(0xFF26381F), onPrimaryContainer = Color(0xFFA5D6A7),
-    track = Color(0xFF332F28), kcal = Color(0xFF66BB6A), protein = Color(0xFF4DB6AC),
-    carbs = Color(0xFFF28C4B), fat = Color(0xFFF2C230),
+    track = Color(0xFF332F28), kcal = Color(0xFFEF5350), protein = Color(0xFF4DB6AC),
+    carbs = Color(0xFFF2C230), fat = Color(0xFFF28C4B),
     scrim = Color(0x8F000000),
 )
 

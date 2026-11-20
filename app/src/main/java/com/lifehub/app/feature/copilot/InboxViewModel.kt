@@ -56,6 +56,8 @@ class InboxViewModel(
     fun choose(pendingId: String, option: Int) { viewModelScope.launch { actions.answer(pendingId, option = option) } }
     fun reply(pendingId: String, text: String) { if (text.isNotBlank()) viewModelScope.launch { actions.answer(pendingId, text = text) } }
     fun discard(pendingId: String) { viewModelScope.launch { actions.discard(pendingId) } }
+    /** Discards every open request, one by one (the last one of a capture resumes it, as with the single Discard). */
+    fun discardAll() { viewModelScope.launch { state.value.requests.forEach { actions.discard(it.id) } } }
     fun retry(captureId: String) { viewModelScope.launch { actions.retry(captureId) } }
 
     companion object {

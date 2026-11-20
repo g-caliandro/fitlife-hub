@@ -36,23 +36,9 @@ class CopilotSettingsViewModelTest {
         val s = vm().ui.value.settings
         assertEquals("https://openrouter.ai/api/v1", s.llmBaseUrl)
         assertEquals("anthropic/claude-haiku-5.5", s.llmModel)
-        assertEquals("openai/whisper-large-v3-turbo", s.sttModel)
+        assertEquals("whisper-large-v3-turbo", s.sttModel)
         assertEquals("it", s.sttLanguage)
-        assertEquals("https://openrouter.ai/api/v1", s.sttBaseUrl)
-    }
-
-    @Test fun savedGroqDefaultsMoveToOpenRouterButACustomChoiceIsKept() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
-        val prefs = ctx.getSharedPreferences("copilot_settings", Context.MODE_PRIVATE)
-        prefs.edit().putString("sttBaseUrl", "https://api.groq.com/openai/v1").putString("sttModel", "whisper-large-v3-turbo").commit()
-        val migrated = CopilotSettingsRepository(ctx).current()
-        assertEquals("https://openrouter.ai/api/v1", migrated.sttBaseUrl)
-        assertEquals("openai/whisper-large-v3-turbo", migrated.sttModel)
-
-        prefs.edit().putString("sttBaseUrl", "https://api.groq.com/openai/v1").putString("sttModel", "whisper-large-v3").commit()
-        val kept = CopilotSettingsRepository(ctx).current()
-        assertEquals("https://api.groq.com/openai/v1", kept.sttBaseUrl)
-        assertEquals("whisper-large-v3", kept.sttModel)
+        assertEquals("https://api.groq.com/openai/v1", s.sttBaseUrl)
     }
 
     @Test fun editsPersistAndBlankIsIgnored() {

@@ -58,7 +58,7 @@ fun InboxRoute(onNavigate: (String) -> Unit, onBack: () -> Unit) {
     InboxScreen(
         state, onBack, zone = c.time.zone,
         actions = CardActions(onChoose = vm::choose, onReply = vm::reply, onDiscard = vm::discard),
-        onRetry = vm::retry, onOpenThread = { id -> onNavigate(Routes.copilot(id)) },
+        onRetry = vm::retry, onDiscardAll = vm::discardAll, onOpenThread = { id -> onNavigate(Routes.copilot(id)) },
     )
 }
 
@@ -70,6 +70,7 @@ fun InboxScreen(
     zone: ZoneId = ZoneId.systemDefault(),
     actions: CardActions = CardActions(),
     onRetry: (String) -> Unit = {},
+    onDiscardAll: () -> Unit = {},
     onOpenThread: (String) -> Unit = {},
 ) {
     val c = LhTheme.colors
@@ -88,7 +89,8 @@ fun InboxScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (state.requests.isNotEmpty()) {
-                    item(key = "h-req") { LhSectionHeader("Questions", topPadding = 8.dp) }
+                    item(key = "h-req") { LhSectionHeader("Questions", Modifier.testTag("inbox-discard-all"), topPadding = 8.dp, icon = null,
+                        action = { LhButton("Discard all", onDiscardAll, variant = LhButtonVariant.Ghost, size = LhButtonSize.Sm) }) }
                     items(state.requests, key = { "p-" + it.id }) { p ->
                         PendingInputCardView(PendingCards.from(p), p, enabled = true, actions = actions,
                             modifier = Modifier.testTag("inbox-request"))

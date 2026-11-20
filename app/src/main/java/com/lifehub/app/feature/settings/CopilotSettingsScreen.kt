@@ -101,7 +101,7 @@ fun CopilotSettingsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     CommittedField("Base URL", s.sttBaseUrl, onSttBaseUrl, uri = true)
                     CommittedField("Model", s.sttModel, onSttModel, uri = true)
-                    KeyField("API key", state.sttKeyMask, onSaveSttKey, onRemoveSttKey, supporting = "Optional: with the same provider as the language model (OpenRouter) its key is used.")
+                    KeyField("API key", state.sttKeyMask, onSaveSttKey, onRemoveSttKey, supporting = "Your Groq key. Left empty, the language model key is used only if both share the same provider.")
                     CommittedField("Transcription language", s.sttLanguage, onSttLanguage, uri = true, supporting = "ISO 639-1 code, e.g. it, en.")
                 }
             }
