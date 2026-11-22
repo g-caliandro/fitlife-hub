@@ -5,3 +5,11 @@ build/
 *.iml
 .kotlin/
 kls_database.db
+
+# Signing keys and release output (never commit)
+*.jks
+*.keystore
+*.p12
+dist/
+*.apk
+*.aab

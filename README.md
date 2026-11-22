@@ -79,6 +79,28 @@ Install the debug APK on a device with `adb install -r app/build/outputs/apk/deb
 
 The app has no onboarding. To explore it without entering data, use **You → Data → Generate mock data**.
 
+## Releasing
+
+A GitHub Action (`.github/workflows/release.yml`) builds signed release APKs and attaches them to a GitHub Release whenever a `v*` tag is pushed.
+
+1. Generate a keystore once (keep it out of the repo):
+
+   ```bash
+   keytool -genkeypair -v -keystore fitlife-hub.jks -alias fitlife -keyalg RSA -keysize 2048 -validity 10000
+   base64 -w0 fitlife-hub.jks   # copy the output
+   ```
+
+2. In GitHub **Settings → Secrets and variables → Actions**, add: `KEYSTORE_BASE64` (the base64 output), `KEYSTORE_PASSWORD`, `KEY_ALIAS` (`fitlife`), `KEY_PASSWORD`.
+3. Tag and push:
+
+   ```bash
+   git tag v0.2.0 && git push --tags
+   ```
+
+4. Download `fitlife-hub-v0.2.0-arm64-v8a.apk` from the Release page on your phone.
+
+**Back up the keystore and its passwords.** If you lose them you can never publish an update that installs over the previous one. APKs must always be signed with the same key: the first install from a Release needs the same key as all future ones, so uninstall the existing debug-signed app once (this erases its data) before installing the first release APK.
+
 ## Copilot setup
 
 1. Open **You → Copilot**.
